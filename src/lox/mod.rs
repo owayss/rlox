@@ -2,6 +2,8 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
 
+mod expr;
+mod parser;
 mod scanner;
 mod token;
 
@@ -22,7 +24,11 @@ pub fn run_repl() {
 }
 fn run(source: &str) {
     let mut s = scanner::Scanner::new(source);
-    println!("{:?}", s.scan_tokens());
+    let tokens = s.scan_tokens();
+    let mut p = parser::Parser::new(tokens);
+    if let Ok(e) = p.parse() {
+        println!("{}", e);
+    }
 }
 
 fn error(line: usize, msg: &str) {

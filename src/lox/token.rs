@@ -1,5 +1,5 @@
 use std::fmt;
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum TokenKind {
     // Single-character tokens.
     LeftParen,
@@ -50,18 +50,20 @@ pub enum TokenKind {
     EOF,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Literal {
     Identifier(String),
     String(String),
     Number(f64),
+    Bool(bool),
+    Nil,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
-    kind: TokenKind,
-    lexeme: String,
-    literal: Option<Literal>,
-    line: usize,
+    pub kind: TokenKind,
+    pub lexeme: String,
+    pub literal: Option<Literal>,
+    pub line: usize,
 }
 impl Token {
     pub fn new(kind: TokenKind, lexeme: String, literal: Option<Literal>, line: usize) -> Self {
@@ -75,6 +77,18 @@ impl Token {
 }
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?} {} {:?}", self.kind, self.lexeme, self.literal)
+        write!(f, "{}", self.lexeme)
+    }
+}
+
+impl fmt::Display for Literal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Literal::Identifier(x) => write!(f, "{}", x),
+            Literal::String(s) => write!(f, "{}", s),
+            Literal::Number(n) => write!(f, "{}", n),
+            Literal::Bool(b) => write!(f, "{}", b),
+            Literal::Nil => write!(f, "Nil"),
+        }
     }
 }

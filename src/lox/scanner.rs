@@ -110,7 +110,10 @@ impl Scanner {
 
     fn string(&mut self) {
         while self.peek() != '"' && !self.is_at_end() {
-            self.current += 1;
+            if self.peek() == '\n' {
+                self.line += 1;
+            }
+            self.advance();
         }
         if self.is_at_end() {
             self.had_error = true;
@@ -120,7 +123,7 @@ impl Scanner {
         // The closing '""
         self.advance();
         // Trim surrounding quotes.
-        let val: String = self.source[self.start + 1..self.current + 1]
+        let val: String = self.source[self.start + 1..self.current - 1]
             .iter()
             .collect();
         self.add_token(TokenKind::String, Some(Literal::String(val)));

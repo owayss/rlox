@@ -26,7 +26,7 @@ impl Parser {
         while self.matches(&[BangEqual, EqualEqual]) {
             let operator = self.previous();
             let right = self.comparison()?;
-            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+            expr = Expr::Binary(operator, Box::new(expr), Box::new(right));
         }
         Ok(expr)
     }
@@ -35,7 +35,7 @@ impl Parser {
         while self.matches(&[Less, LessEqual, Greater, GreaterEqual]) {
             let operator = self.previous();
             let right = self.addition()?;
-            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+            expr = Expr::Binary(operator, Box::new(expr), Box::new(right));
         }
         Ok(expr)
     }
@@ -44,7 +44,7 @@ impl Parser {
         while self.matches(&[Plus, Minus]) {
             let operator = self.previous();
             let right = self.multiplication()?;
-            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+            expr = Expr::Binary(operator, Box::new(expr), Box::new(right));
         }
         Ok(expr)
     }
@@ -53,7 +53,7 @@ impl Parser {
         while self.matches(&[Star, Slash]) {
             let operator = self.previous();
             let right = self.unary()?;
-            expr = Expr::Binary(Box::new(expr), operator, Box::new(right));
+            expr = Expr::Binary(operator, Box::new(expr), Box::new(right));
         }
         Ok(expr)
     }

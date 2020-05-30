@@ -70,7 +70,7 @@ impl Parser {
         if self.matches(&[False]) {
             Ok(Expr::Literal(Literal::Bool(false)))
         } else if self.matches(&[True]) {
-            Ok(Expr::Literal(Literal::Bool(false)))
+            Ok(Expr::Literal(Literal::Bool(true)))
         } else if self.matches(&[Nil]) {
             Ok(Expr::Literal(Literal::Nil))
         } else if self.matches(&[String, Number]) {

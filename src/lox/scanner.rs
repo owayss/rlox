@@ -151,7 +151,7 @@ impl Scanner {
             self.current += 1;
         }
         let val: String = self.source[self.start..self.current].iter().collect();
-        if let Some(keyword) = self.reserver_keyword(&val) {
+        if let Some(keyword) = self.reserved_keyword(&val) {
             self.add_token(keyword, None);
         } else {
             self.add_token(TokenKind::Identifier, Some(Literal::Identifier(val)));
@@ -188,7 +188,7 @@ impl Scanner {
         self.source[self.current - 1]
     }
 
-    fn reserver_keyword(&self, identifier: &str) -> Option<TokenKind> {
+    fn reserved_keyword(&self, identifier: &str) -> Option<TokenKind> {
         match identifier {
             "and" => Some(TokenKind::And),
             "class" => Some(TokenKind::Class),

@@ -3,6 +3,7 @@ use std::io::{self, Write};
 use std::path::Path;
 
 mod expr;
+mod interpreter;
 mod parser;
 mod scanner;
 mod token;
@@ -28,6 +29,7 @@ fn run(source: &str) {
     let mut p = parser::Parser::new(tokens);
     if let Ok(e) = p.parse() {
         println!("{}", e);
+        println!("{:#?}", interpreter::Object::new(e).interpret());
     }
 }
 

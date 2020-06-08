@@ -50,7 +50,7 @@ pub enum TokenKind {
     EOF,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Literal {
     Identifier(String),
     String(String),
@@ -58,7 +58,7 @@ pub enum Literal {
     Bool(bool),
     Nil,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Token {
     pub kind: TokenKind,
     pub lexeme: String,

@@ -1,26 +1,38 @@
+use super::environment::Environment;
 use super::expr::Expr;
+use super::stmt::Stmt;
 use super::token::{Literal, TokenKind};
 
-// The Object type for now has nothing more than the Expr enum, and we could
-// have chosen to implement evaluation on the Expr enum type, but that would
-// be mixing two different levels of abstraction: expression are of the parser's
-// domain, whereas values (what the AST expressions are converted to in this
-// type) are an interpreter's concept, a run-time concept.
 #[derive(Debug)]
-pub struct Object {
-    expr: Expr,
-    value: Option<Value>,
+pub struct Interpreter {
+    environment: Environment,
 }
-impl Object {
-    pub fn new(e: Expr) -> Self {
-        Object {
-            value: None,
-            expr: e,
+impl Interpreter {
+    pub fn new() -> Self {
+        Interpreter {
+            environment: Environment::new(),
         }
     }
 
-    pub fn interpret(&self) -> Result<Option<Value>, String> {
-        Object::eval(&self.expr)
+    pub fn interpret(&mut self, stmts: Vec<Stmt>) -> Result<Option<Value>, String> {
+        let mut val: Result<Option<Value>, String> = Ok(None);
+        for s in &stmts {
+            match s {
+                Stmt::Expr(e) => {
+                    val = self.eval(&e);
+                }
+                Stmt::Print(e) => {
+                    val = self.eval(&e);
+                    println!("{:#?}", val);
+                }
+                Stmt::Var(t, e) => {
+                    val = self.eval(&e);
+                    self.environment
+                        .define(t.lexeme.to_owned(), val.clone().unwrap().unwrap());
+                }
+            }
+        }
+        val
     }
 
     fn is_truthy(l: &Literal) -> bool {
@@ -51,17 +63,17 @@ impl Object {
     // different operations as traits on our Value type.
     // TODO: come back to see this and change it to be based on traits, see how
     // that would look like.
-    fn eval(e: &Expr) -> Result<Option<Value>, String> {
+    fn eval(&self, e: &Expr) -> Result<Option<Value>, String> {
         let mut ret: Option<Value> = None;
         match e {
             Expr::Literal(l) => {
-                ret = Object::eval_literal(l);
+                ret = Interpreter::eval_literal(l);
             }
             Expr::Grouping(g) => {
-                ret = Object::eval(g)?;
+                ret = self.eval(g)?;
             }
             Expr::Unary(t, e) => {
-                if let Some(r_val) = Object::eval(e)? {
+                if let Some(r_val) = self.eval(e)? {
                     match t.kind {
                         TokenKind::Minus => match r_val {
                             Value::Number(n) => {
@@ -90,8 +102,8 @@ impl Object {
                 }
             }
             Expr::Binary(t, e1, e2) => {
-                let left = Object::eval(e1)?;
-                let right = Object::eval(e2)?;
+                let left = self.eval(e1)?;
+                let right = self.eval(e2)?;
                 match (left, right) {
                     (None, _) | (_, None) => ret = None,
                     // FIXME: do we want some operations to be defined on null?
@@ -123,10 +135,10 @@ impl Object {
                                 ret = Some(Value::Bool(n1 >= n2));
                             }
                             TokenKind::EqualEqual => {
-                                ret = Some(Value::Bool(Object::is_equal(&v1, &v2)));
+                                ret = Some(Value::Bool(Interpreter::is_equal(&v1, &v2)));
                             }
                             TokenKind::BangEqual => {
-                                ret = Some(Value::Bool(!Object::is_equal(&v1, &v2)));
+                                ret = Some(Value::Bool(!Interpreter::is_equal(&v1, &v2)));
                             }
                             _ => {
                                 return Err(format!(
@@ -141,10 +153,10 @@ impl Object {
                                 ret = Some(Value::String(format!("{}{}", s1, s2)));
                             }
                             TokenKind::EqualEqual => {
-                                ret = Some(Value::Bool(Object::is_equal(&v1, &v2)));
+                                ret = Some(Value::Bool(Interpreter::is_equal(&v1, &v2)));
                             }
                             TokenKind::BangEqual => {
-                                ret = Some(Value::Bool(!Object::is_equal(&v1, &v2)));
+                                ret = Some(Value::Bool(!Interpreter::is_equal(&v1, &v2)));
                             }
                             _ => {
                                 return Err(format!(
@@ -162,10 +174,10 @@ impl Object {
                                 ret = Some(Value::Bool(*b1 || *b2));
                             }
                             TokenKind::EqualEqual => {
-                                ret = Some(Value::Bool(Object::is_equal(&v1, &v2)));
+                                ret = Some(Value::Bool(Interpreter::is_equal(&v1, &v2)));
                             }
                             TokenKind::BangEqual => {
-                                ret = Some(Value::Bool(!Object::is_equal(&v1, &v2)));
+                                ret = Some(Value::Bool(!Interpreter::is_equal(&v1, &v2)));
                             }
                             _ => {
                                 return Err(format!(
@@ -177,10 +189,10 @@ impl Object {
                         // type(v1) != type(v2)
                         (x, y) => match t.kind {
                             TokenKind::EqualEqual => {
-                                ret = Some(Value::Bool(Object::is_equal(&v1, &v2)));
+                                ret = Some(Value::Bool(Interpreter::is_equal(&v1, &v2)));
                             }
                             TokenKind::BangEqual => {
-                                ret = Some(Value::Bool(!Object::is_equal(&v1, &v2)));
+                                ret = Some(Value::Bool(!Interpreter::is_equal(&v1, &v2)));
                             }
                             _ => {
                                 return Err(format!(
@@ -192,12 +204,15 @@ impl Object {
                     },
                 }
             }
+            Expr::Variable(t) => {
+                ret = Some(self.environment.get(t.clone()));
+            }
         }
         Ok(ret)
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 // We are effectively defining equality on any two values, even mixed types.
 // TODO: Do we want this?
 pub enum Value {

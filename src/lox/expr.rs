@@ -1,12 +1,13 @@
 use super::token;
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Expr {
     Literal(token::Literal),
     Unary(token::Token, Box<Expr>),
     Binary(token::Token, Box<Expr>, Box<Expr>),
     Grouping(Box<Expr>),
+    Variable(token::Token),
 }
 // Lisp-like printer for AST
 impl fmt::Display for Expr {
@@ -16,6 +17,7 @@ impl fmt::Display for Expr {
             Expr::Unary(t, e) => write!(f, "({} {})", t, e),
             Expr::Binary(t, e1, e2) => write!(f, "({} {} {})", t, e1, e2),
             Expr::Grouping(e) => write!(f, "(group {})", e),
+            Expr::Variable(t) => write!(f, "{}", t),
         }
     }
 }

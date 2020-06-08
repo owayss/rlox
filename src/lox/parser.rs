@@ -1,4 +1,5 @@
 use super::expr::Expr;
+use super::stmt::Stmt;
 use super::token::{Literal, Token, TokenKind, TokenKind::*};
 
 #[derive(Debug)]
@@ -15,11 +16,52 @@ impl Parser {
     pub fn new(tokens: Vec<Token>) -> Parser {
         Parser { current: 0, tokens }
     }
-    pub fn parse(&mut self) -> Result<Expr, ParseErr> {
-        self.expression()
+    pub fn parse(&mut self) -> Result<Vec<Stmt>, ParseErr> {
+        let mut stmts = Vec::<Stmt>::new();
+        while !self.is_at_end() {
+            stmts.push(self.declaration().unwrap());
+        }
+        Ok(stmts)
     }
     fn expression(&mut self) -> Result<Expr, ParseErr> {
         self.equality()
+    }
+    fn declaration(&mut self) -> Result<Stmt, ParseErr> {
+        let res = if self.matches(&[Var]) {
+            self.var_declaration()
+        } else {
+            self.statement()
+        };
+        if let Err(_) = res {
+            self.synchronize();
+        }
+        res
+    }
+    fn var_declaration(&mut self) -> Result<Stmt, ParseErr> {
+        let t = self.consume(Identifier, "Expect variable name.")?;
+        let initializer = if self.matches(&[Equal]) {
+            self.expression()?
+        } else {
+            Expr::Literal(Literal::Nil)
+        };
+        self.consume(Semicolon, "Expect ';' after variable declaration.");
+        Ok(Stmt::Var(t, initializer))
+    }
+    fn statement(&mut self) -> Result<Stmt, ParseErr> {
+        if self.matches(&[Print]) {
+            return Ok(self.print_stmt());
+        }
+        return Ok(self.expr_stmt());
+    }
+    fn print_stmt(&mut self) -> Stmt {
+        let e = self.expression();
+        self.consume(Semicolon, "Expect ';' after value.");
+        Stmt::Print(e.unwrap())
+    }
+    fn expr_stmt(&mut self) -> Stmt {
+        let e = self.expression();
+        self.consume(Semicolon, "Expect ';' after value.");
+        Stmt::Expr(e.unwrap())
     }
     fn equality(&mut self) -> Result<Expr, ParseErr> {
         let mut expr = self.comparison()?;
@@ -82,6 +124,8 @@ impl Parser {
             } else {
                 Ok(Expr::Grouping(Box::new(e)))
             }
+        } else if self.matches(&[Identifier]) {
+            Ok(Expr::Variable(self.previous()))
         } else {
             Err(self.error(
                 ParseErr::UnknownProduction,
@@ -91,10 +135,11 @@ impl Parser {
         }
     }
 
-    fn consume(&mut self, t: TokenKind, err: &str) -> Result<(), ParseErr> {
-        if self.tokens[self.current].kind == t {
+    fn consume(&mut self, t: TokenKind, err: &str) -> Result<Token, ParseErr> {
+        let token = self.tokens[self.current].clone();
+        if token.kind == t {
             self.advance();
-            Ok(())
+            Ok(token)
         } else {
             Err(self.error(ParseErr::UnclosedGrouping, self.peek(), err))
         }
@@ -107,6 +152,21 @@ impl Parser {
             super::report(t.line, &format!("at '{}'", t.lexeme), msg);
         }
         err
+    }
+
+    fn synchronize(&mut self) {
+        self.advance();
+        while !self.is_at_end() {
+            if self.previous().kind == Semicolon {
+                return;
+            }
+            match self.peek().kind {
+                Class | Fun | Var | For | If | While | Print | Return => return,
+                _ => {}
+            }
+
+            self.advance();
+        }
     }
 
     fn matches(&mut self, kinds: &[TokenKind]) -> bool {
@@ -134,5 +194,33 @@ impl Parser {
 
     fn peek(&self) -> Token {
         self.tokens[self.current].clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Expr, Literal, Parser, Stmt, Token, TokenKind};
+    #[test]
+    fn test_statement() {
+        assert_eq!(
+            Parser::new(vec![
+                Token::new(TokenKind::Var, "var".to_owned(), None, 1),
+                Token::new(TokenKind::Identifier, "x".to_owned(), None, 1),
+                Token::new(TokenKind::Equal, "=".to_owned(), None, 1),
+                Token::new(
+                    TokenKind::Number,
+                    "7.0".to_owned(),
+                    Some(Literal::Number(7.0)),
+                    1
+                ),
+                Token::new(TokenKind::EOF, "".to_owned(), None, 1),
+            ])
+            .parse()
+            .unwrap(),
+            vec![Stmt::Var(
+                Token::new(TokenKind::Identifier, "x".to_owned(), None, 1),
+                Expr::Literal(Literal::Number(7.0))
+            )]
+        );
     }
 }

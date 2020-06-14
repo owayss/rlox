@@ -6,6 +6,7 @@ use super::token::{Literal, Token, TokenKind, TokenKind::*};
 pub enum ParseErr {
     UnclosedGrouping,
     UnknownProduction,
+    InvalidAssignmentTarget,
 }
 pub struct Parser {
     current: usize,
@@ -24,7 +25,7 @@ impl Parser {
         Ok(stmts)
     }
     fn expression(&mut self) -> Result<Expr, ParseErr> {
-        self.equality()
+        self.assignment()
     }
     fn declaration(&mut self) -> Result<Stmt, ParseErr> {
         let res = if self.matches(&[Var]) {
@@ -44,24 +45,52 @@ impl Parser {
         } else {
             Expr::Literal(Literal::Nil)
         };
-        self.consume(Semicolon, "Expect ';' after variable declaration.");
+        self.consume(Semicolon, "Expect ';' after variable declaration.")?;
         Ok(Stmt::Var(t, initializer))
     }
     fn statement(&mut self) -> Result<Stmt, ParseErr> {
         if self.matches(&[Print]) {
-            return Ok(self.print_stmt());
+            return self.print_stmt();
         }
-        return Ok(self.expr_stmt());
+        if self.matches(&[LeftBrace]) {
+            return Ok(Stmt::Block(self.block()?));
+        }
+        self.expr_stmt()
     }
-    fn print_stmt(&mut self) -> Stmt {
-        let e = self.expression();
-        self.consume(Semicolon, "Expect ';' after value.");
-        Stmt::Print(e.unwrap())
+    fn block(&mut self) -> Result<Vec<Stmt>, ParseErr> {
+        let mut stmts: Vec<Stmt> = Vec::new();
+        while !self.is_at_end() && self.peek().kind != RightBrace {
+            stmts.push(self.declaration().unwrap());
+        }
+        self.consume(RightBrace, "Expect closing right bracket '}' after block.")?;
+        Ok(stmts)
     }
-    fn expr_stmt(&mut self) -> Stmt {
+    fn print_stmt(&mut self) -> Result<Stmt, ParseErr> {
         let e = self.expression();
-        self.consume(Semicolon, "Expect ';' after value.");
-        Stmt::Expr(e.unwrap())
+        self.consume(Semicolon, "Expect ';' after value.")?;
+        Ok(Stmt::Print(e.unwrap()))
+    }
+    fn expr_stmt(&mut self) -> Result<Stmt, ParseErr> {
+        let e = self.expression();
+        self.consume(Semicolon, "Expect ';' after value.")?;
+        Ok(Stmt::Expr(e.unwrap()))
+    }
+    fn assignment(&mut self) -> Result<Expr, ParseErr> {
+        let l_val = self.equality()?;
+        if self.matches(&[Equal]) {
+            let target = self.previous();
+            let e = self.expression()?;
+            if let Expr::Variable(t) = l_val {
+                return Ok(Expr::Assignment(t, Box::new(e)));
+            } else {
+                return Err(self.error(
+                    ParseErr::InvalidAssignmentTarget,
+                    target,
+                    "Invalid assignment target.",
+                ));
+            }
+        }
+        Ok(l_val)
     }
     fn equality(&mut self) -> Result<Expr, ParseErr> {
         let mut expr = self.comparison()?;
@@ -213,6 +242,7 @@ mod tests {
                     Some(Literal::Number(7.0)),
                     1
                 ),
+                Token::new(TokenKind::Semicolon, ";".to_owned(), None, 1),
                 Token::new(TokenKind::EOF, "".to_owned(), None, 1),
             ])
             .parse()

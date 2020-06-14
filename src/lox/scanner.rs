@@ -34,8 +34,8 @@ impl Scanner {
         match c {
             '(' => self.add_token(TokenKind::LeftParen, None),
             ')' => self.add_token(TokenKind::RightParen, None),
-            '[' => self.add_token(TokenKind::LeftBrace, None),
-            ']' => self.add_token(TokenKind::RightBrace, None),
+            '{' => self.add_token(TokenKind::LeftBrace, None),
+            '}' => self.add_token(TokenKind::RightBrace, None),
             ',' => self.add_token(TokenKind::Comma, None),
             '.' => self.add_token(TokenKind::Dot, None),
             '-' => self.add_token(TokenKind::Minus, None),

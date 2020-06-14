@@ -1,21 +1,23 @@
-use super::environment::Environment;
+use super::environment::{Environment, RuntimeErr};
 use super::expr::Expr;
 use super::stmt::Stmt;
 use super::token::{Literal, TokenKind};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct Interpreter {
-    environment: Environment,
+    environment: Rc<RefCell<Environment>>,
 }
 impl Interpreter {
     pub fn new() -> Self {
         Interpreter {
-            environment: Environment::new(),
+            environment: Rc::new(RefCell::new(Environment::new(None))),
         }
     }
 
-    pub fn interpret(&mut self, stmts: Vec<Stmt>) -> Result<Option<Value>, String> {
-        let mut val: Result<Option<Value>, String> = Ok(None);
+    pub fn interpret(&mut self, stmts: Vec<Stmt>) -> Result<Option<Value>, RuntimeErr> {
+        let mut val: Result<Option<Value>, RuntimeErr> = Ok(None);
         for s in &stmts {
             match s {
                 Stmt::Expr(e) => {
@@ -28,18 +30,32 @@ impl Interpreter {
                 Stmt::Var(t, e) => {
                     val = self.eval(&e);
                     self.environment
+                        .borrow_mut()
                         .define(t.lexeme.to_owned(), val.clone().unwrap().unwrap());
+                }
+                Stmt::Block(s) => {
+                    let previous = Rc::clone(&self.environment);
+                    {
+                        self.environment = Rc::new(RefCell::new(Environment::new(Some(
+                            Rc::clone(&self.environment),
+                        ))));
+                        val = self.interpret(s.to_vec());
+                    }
+                    self.environment = previous;
                 }
             }
         }
         val
     }
 
-    fn is_truthy(l: &Literal) -> bool {
-        match l {
-            Literal::Nil => false,
-            Literal::Bool(b) => *b,
-            _ => true,
+    fn is_truthy(v: Option<&Value>) -> bool {
+        if let Some(val) = v {
+            match val {
+                Value::Bool(b) => *b,
+                _ => true,
+            }
+        } else {
+            false
         }
     }
     // is_equal defines equality on all Value types, including mixed ones.
@@ -63,7 +79,7 @@ impl Interpreter {
     // different operations as traits on our Value type.
     // TODO: come back to see this and change it to be based on traits, see how
     // that would look like.
-    fn eval(&self, e: &Expr) -> Result<Option<Value>, String> {
+    fn eval(&mut self, e: &Expr) -> Result<Option<Value>, RuntimeErr> {
         let mut ret: Option<Value> = None;
         match e {
             Expr::Literal(l) => {
@@ -73,32 +89,22 @@ impl Interpreter {
                 ret = self.eval(g)?;
             }
             Expr::Unary(t, e) => {
-                if let Some(r_val) = self.eval(e)? {
-                    match t.kind {
-                        TokenKind::Minus => match r_val {
-                            Value::Number(n) => {
-                                ret = Some(Value::Number(-n));
-                            }
-                            x => {
-                                return Err(format!(
-                                    "Operator {:?} not defined on type {:?}",
-                                    t.kind, x
-                                ))
-                            }
-                        },
-                        TokenKind::Bang => match r_val {
-                            Value::Bool(b) => {
-                                ret = Some(Value::Bool(!b));
-                            }
-                            x => {
-                                return Err(format!(
-                                    "Operator {:?} not defined on type {:?}",
-                                    t.kind, x
-                                ))
-                            }
-                        },
-                        _ => {}
+                let r_val = self.eval(e)?;
+                match t.kind {
+                    TokenKind::Minus => {
+                        if let Some(Value::Number(n)) = r_val {
+                            ret = Some(Value::Number(-n));
+                        } else {
+                            return Err(RuntimeErr::UndefinedOperatorOnType(format!(
+                                "Operator {:?} not defined on type {:?}",
+                                t.kind, r_val
+                            )));
+                        }
                     }
+                    TokenKind::Bang => {
+                        ret = Some(Value::Bool(!Interpreter::is_truthy(r_val.as_ref())));
+                    }
+                    _ => {}
                 }
             }
             Expr::Binary(t, e1, e2) => {
@@ -141,10 +147,10 @@ impl Interpreter {
                                 ret = Some(Value::Bool(!Interpreter::is_equal(&v1, &v2)));
                             }
                             _ => {
-                                return Err(format!(
+                                return Err(RuntimeErr::UndefinedOperatorOnType(format!(
                                     "Operator {:?} not defined on type Number",
                                     t.kind
-                                ))
+                                )))
                             }
                         },
 
@@ -159,10 +165,10 @@ impl Interpreter {
                                 ret = Some(Value::Bool(!Interpreter::is_equal(&v1, &v2)));
                             }
                             _ => {
-                                return Err(format!(
+                                return Err(RuntimeErr::UndefinedOperatorOnType(format!(
                                     "Operator {:?} not defined on type String",
                                     t.kind
-                                ))
+                                )))
                             }
                         },
 
@@ -180,10 +186,10 @@ impl Interpreter {
                                 ret = Some(Value::Bool(!Interpreter::is_equal(&v1, &v2)));
                             }
                             _ => {
-                                return Err(format!(
+                                return Err(RuntimeErr::UndefinedOperatorOnType(format!(
                                     "Operator {:?} not defined on type Bool",
                                     t.kind
-                                ))
+                                )))
                             }
                         },
                         // type(v1) != type(v2)
@@ -195,17 +201,28 @@ impl Interpreter {
                                 ret = Some(Value::Bool(!Interpreter::is_equal(&v1, &v2)));
                             }
                             _ => {
-                                return Err(format!(
+                                return Err(RuntimeErr::UndefinedOperatorOnType(format!(
                                     "Operator {:#?} not defined on types ({:?}, {:?})",
                                     t.kind, x, y
-                                ))
+                                )))
                             }
                         },
                     },
                 }
             }
-            Expr::Variable(t) => {
-                ret = Some(self.environment.get(t.clone()));
+            Expr::Variable(t) => match self.environment.borrow().get(t.clone()) {
+                Ok(val) => ret = Some(val),
+                Err(err) => return Err(err),
+            },
+            Expr::Assignment(t, r_val) => {
+                ret = self.eval(r_val)?;
+                if let Err(err) = self
+                    .environment
+                    .borrow_mut()
+                    .assign(t.lexeme.to_owned(), ret.clone().unwrap())
+                {
+                    return Err(err);
+                }
             }
         }
         Ok(ret)

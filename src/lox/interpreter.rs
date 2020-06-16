@@ -5,6 +5,41 @@ use super::token::{Literal, TokenKind};
 use std::cell::RefCell;
 use std::rc::Rc;
 
+#[derive(Debug, PartialEq, Clone)]
+// We are effectively defining equality on any two values, even mixed types.
+// TODO: Do we want this?
+pub enum Value {
+    String(std::string::String),
+    Number(f64),
+    Bool(bool),
+    // TODO: do we want our own null type? or should we just take Rust's None?
+}
+
+fn is_truthy(v: Option<&Value>) -> bool {
+    if let Some(val) = v {
+        match val {
+            Value::Bool(b) => *b,
+            _ => true,
+        }
+    } else {
+        false
+    }
+}
+// is_equal defines equality on all Value types, including mixed ones.
+// TODO: I had not thought of this initially. Do we want to define equality
+// on mixed types? Or should we disallow it?
+fn is_equal(v1: &Value, v2: &Value) -> bool {
+    v1 == v2
+}
+fn eval_literal(l: &Literal) -> Option<Value> {
+    match l {
+        Literal::Identifier(s) => Some(Value::String(s.to_owned())),
+        Literal::String(s) => Some(Value::String(s.to_owned())),
+        Literal::Number(n) => Some(Value::Number(*n)),
+        Literal::Bool(b) => Some(Value::Bool(*b)),
+        Literal::Nil => None,
+    }
+}
 #[derive(Debug)]
 pub struct Interpreter {
     environment: Rc<RefCell<Environment>>,
@@ -50,31 +85,6 @@ impl Interpreter {
         val
     }
 
-    fn is_truthy(v: Option<&Value>) -> bool {
-        if let Some(val) = v {
-            match val {
-                Value::Bool(b) => *b,
-                _ => true,
-            }
-        } else {
-            false
-        }
-    }
-    // is_equal defines equality on all Value types, including mixed ones.
-    // TODO: I had not thought of this initially. Do we want to define equality
-    // on mixed types? Or should we disallow it?
-    fn is_equal(v1: &Value, v2: &Value) -> bool {
-        v1 == v2
-    }
-    fn eval_literal(l: &Literal) -> Option<Value> {
-        match l {
-            Literal::Identifier(s) => Some(Value::String(s.to_owned())),
-            Literal::String(s) => Some(Value::String(s.to_owned())),
-            Literal::Number(n) => Some(Value::Number(*n)),
-            Literal::Bool(b) => Some(Value::Bool(*b)),
-            Literal::Nil => None,
-        }
-    }
     // eval evaluates the different types of expressions that lox supports
     // using pattern matching on types. This looks OK now, but it might be a
     // good idea to take advantage of Rust's type system and define the
@@ -85,7 +95,7 @@ impl Interpreter {
         let mut ret: Option<Value> = None;
         match e {
             Expr::Literal(l) => {
-                ret = Interpreter::eval_literal(l);
+                ret = eval_literal(l);
             }
             Expr::Grouping(g) => {
                 ret = self.eval(g)?;
@@ -104,7 +114,7 @@ impl Interpreter {
                         }
                     }
                     TokenKind::Bang => {
-                        ret = Some(Value::Bool(!Interpreter::is_truthy(r_val.as_ref())));
+                        ret = Some(Value::Bool(!is_truthy(r_val.as_ref())));
                     }
                     _ => {}
                 }
@@ -143,10 +153,10 @@ impl Interpreter {
                                 ret = Some(Value::Bool(n1 >= n2));
                             }
                             TokenKind::EqualEqual => {
-                                ret = Some(Value::Bool(Interpreter::is_equal(&v1, &v2)));
+                                ret = Some(Value::Bool(is_equal(&v1, &v2)));
                             }
                             TokenKind::BangEqual => {
-                                ret = Some(Value::Bool(!Interpreter::is_equal(&v1, &v2)));
+                                ret = Some(Value::Bool(!is_equal(&v1, &v2)));
                             }
                             _ => {
                                 return Err(RuntimeErr::UndefinedOperatorOnType(format!(
@@ -161,10 +171,10 @@ impl Interpreter {
                                 ret = Some(Value::String(format!("{}{}", s1, s2)));
                             }
                             TokenKind::EqualEqual => {
-                                ret = Some(Value::Bool(Interpreter::is_equal(&v1, &v2)));
+                                ret = Some(Value::Bool(is_equal(&v1, &v2)));
                             }
                             TokenKind::BangEqual => {
-                                ret = Some(Value::Bool(!Interpreter::is_equal(&v1, &v2)));
+                                ret = Some(Value::Bool(!is_equal(&v1, &v2)));
                             }
                             _ => {
                                 return Err(RuntimeErr::UndefinedOperatorOnType(format!(
@@ -182,10 +192,10 @@ impl Interpreter {
                                 ret = Some(Value::Bool(*b1 || *b2));
                             }
                             TokenKind::EqualEqual => {
-                                ret = Some(Value::Bool(Interpreter::is_equal(&v1, &v2)));
+                                ret = Some(Value::Bool(is_equal(&v1, &v2)));
                             }
                             TokenKind::BangEqual => {
-                                ret = Some(Value::Bool(!Interpreter::is_equal(&v1, &v2)));
+                                ret = Some(Value::Bool(!is_equal(&v1, &v2)));
                             }
                             _ => {
                                 return Err(RuntimeErr::UndefinedOperatorOnType(format!(
@@ -197,10 +207,10 @@ impl Interpreter {
                         // type(v1) != type(v2)
                         (x, y) => match t.kind {
                             TokenKind::EqualEqual => {
-                                ret = Some(Value::Bool(Interpreter::is_equal(&v1, &v2)));
+                                ret = Some(Value::Bool(is_equal(&v1, &v2)));
                             }
                             TokenKind::BangEqual => {
-                                ret = Some(Value::Bool(!Interpreter::is_equal(&v1, &v2)));
+                                ret = Some(Value::Bool(!is_equal(&v1, &v2)));
                             }
                             _ => {
                                 return Err(RuntimeErr::UndefinedOperatorOnType(format!(
@@ -231,12 +241,64 @@ impl Interpreter {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
-// We are effectively defining equality on any two values, even mixed types.
-// TODO: Do we want this?
-pub enum Value {
-    String(std::string::String),
-    Number(f64),
-    Bool(bool),
-    // TODO: do we want our own null type? or should we just take Rust's None?
+#[cfg(test)]
+mod tests {
+    use super::Value;
+    #[test]
+    fn test_is_truthy() {
+        use super::is_truthy;
+        assert_eq!(is_truthy(None), false);
+        assert_eq!(is_truthy(Some(&Value::Bool(false))), false);
+        assert_eq!(is_truthy(Some(&Value::Bool(true))), true);
+        assert_eq!(is_truthy(Some(&Value::Number(7.0))), true);
+        assert_eq!(is_truthy(Some(&Value::String("".to_owned()))), true);
+    }
+    #[test]
+    fn test_is_equal() {
+        use super::is_equal;
+        assert_eq!(is_equal(&Value::Bool(false), &Value::Bool(false)), true);
+        assert_eq!(is_equal(&Value::Number(7.0), &Value::Number(7.0)), true);
+        assert_eq!(is_equal(&Value::Number(7.0), &Value::Number(7.0)), true);
+        assert_eq!(
+            is_equal(&Value::Number(7.0), &Value::String("7.0".to_owned())),
+            false
+        );
+        assert_eq!(is_equal(&Value::Bool(false), &Value::Number(7.1)), false);
+    }
+
+    #[test]
+    fn test_eval() {
+        use super::{super::token::Token, Expr, Literal, RuntimeErr, Stmt, TokenKind};
+        let mut sh = super::Interpreter::new();
+        assert_eq!(
+            sh.interpret(vec![Stmt::Expr(Expr::Unary(
+                Token::new(TokenKind::Bang, "!".to_owned(), None, 1),
+                Box::new(Expr::Literal(Literal::Bool(false))),
+            ))])
+            .unwrap()
+            .unwrap(),
+            Value::Bool(true)
+        );
+
+        if let Err(RuntimeErr::UndefinedOperatorOnType(_)) = sh.eval(&Expr::Binary(
+            Token::new(TokenKind::Plus, "+".to_owned(), None, 1),
+            Box::new(Expr::Literal(Literal::Number(123.0))),
+            Box::new(Expr::Literal(Literal::String("abc".to_owned()))),
+        )) {
+            assert!(true)
+        } else {
+            assert!(false)
+        }
+
+        assert_eq!(
+            sh.eval(&Expr::Binary(
+                Token::new(TokenKind::Plus, "+".to_owned(), None, 1),
+                Box::new(Expr::Literal(Literal::String("123".to_owned()))),
+                Box::new(Expr::Literal(Literal::String("abc".to_owned()))),
+            ))
+            .unwrap()
+            .unwrap(),
+            Value::String("123abc".to_owned())
+        );
+    }
 }

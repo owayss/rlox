@@ -4,6 +4,7 @@ use super::token::{Literal, Token, TokenKind, TokenKind::*};
 
 #[derive(Debug)]
 pub enum ParseErr {
+    MissingLiteral,
     UnclosedGrouping,
     UnknownProduction,
     InvalidAssignmentTarget,
@@ -20,7 +21,14 @@ impl Parser {
     pub fn parse(&mut self) -> Result<Vec<Stmt>, ParseErr> {
         let mut stmts = Vec::<Stmt>::new();
         while !self.is_at_end() {
-            stmts.push(self.declaration().unwrap());
+            match self.declaration() {
+                Ok(stmt) => {
+                    stmts.push(stmt);
+                }
+                Err(err) => {
+                    self.error(err, self.tokens[self.current].clone(), "");
+                }
+            }
         }
         Ok(stmts)
     }
@@ -60,7 +68,14 @@ impl Parser {
     fn block(&mut self) -> Result<Vec<Stmt>, ParseErr> {
         let mut stmts: Vec<Stmt> = Vec::new();
         while !self.is_at_end() && self.peek().kind != RightBrace {
-            stmts.push(self.declaration().unwrap());
+            match self.declaration() {
+                Ok(stmt) => {
+                    stmts.push(stmt);
+                }
+                Err(err) => {
+                    self.error(err, self.tokens[self.current].clone(), "");
+                }
+            }
         }
         self.consume(RightBrace, "Expect closing right bracket '}' after block.")?;
         Ok(stmts)
@@ -68,12 +83,18 @@ impl Parser {
     fn print_stmt(&mut self) -> Result<Stmt, ParseErr> {
         let e = self.expression();
         self.consume(Semicolon, "Expect ';' after value.")?;
-        Ok(Stmt::Print(e.unwrap()))
+        match e {
+            Ok(e) => Ok(Stmt::Print(e)),
+            Err(err) => Err(err),
+        }
     }
     fn expr_stmt(&mut self) -> Result<Stmt, ParseErr> {
         let e = self.expression();
         self.consume(Semicolon, "Expect ';' after value.")?;
-        Ok(Stmt::Expr(e.unwrap()))
+        match e {
+            Ok(e) => Ok(Stmt::Expr(e)),
+            Err(err) => Err(err),
+        }
     }
     fn assignment(&mut self) -> Result<Expr, ParseErr> {
         let l_val = self.equality()?;
@@ -145,7 +166,10 @@ impl Parser {
         } else if self.matches(&[Nil]) {
             Ok(Expr::Literal(Literal::Nil))
         } else if self.matches(&[String, Number]) {
-            Ok(Expr::Literal(self.previous().literal.unwrap()))
+            match self.previous().literal {
+                Some(l) => Ok(Expr::Literal(l)),
+                None => Err(ParseErr::MissingLiteral),
+            }
         } else if self.matches(&[LeftParen]) {
             let e = self.expression()?;
             if let Err(err) = self.consume(RightParen, "Expect ')' after expression.") {

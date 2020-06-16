@@ -34,7 +34,9 @@ fn run(i: &mut interpreter::Interpreter, source: &str) {
     let tokens = s.scan_tokens();
     let mut p = parser::Parser::new(tokens);
     if let Ok(stmts) = p.parse() {
-        i.interpret(stmts).unwrap();
+        if let Err(err) = i.interpret(stmts) {
+            eprintln!("{:#?}", err)
+        }
     }
 }
 

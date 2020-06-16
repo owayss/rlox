@@ -29,9 +29,11 @@ impl Interpreter {
                 }
                 Stmt::Var(t, e) => {
                     val = self.eval(&e);
-                    self.environment
-                        .borrow_mut()
-                        .define(t.lexeme.to_owned(), val.clone().unwrap().unwrap());
+                    if let Ok(val) = &val {
+                        if let Some(val) = &val {
+                            self.environment.borrow_mut().define(&t.lexeme, val.clone());
+                        }
+                    }
                 }
                 Stmt::Block(s) => {
                     let previous = Rc::clone(&self.environment);
@@ -210,7 +212,7 @@ impl Interpreter {
                     },
                 }
             }
-            Expr::Variable(t) => match self.environment.borrow().get(t.clone()) {
+            Expr::Variable(t) => match self.environment.borrow().get(&t) {
                 Ok(val) => ret = Some(val),
                 Err(err) => return Err(err),
             },
@@ -219,7 +221,7 @@ impl Interpreter {
                 if let Err(err) = self
                     .environment
                     .borrow_mut()
-                    .assign(t.lexeme.to_owned(), ret.clone().unwrap())
+                    .assign(&t.lexeme, ret.clone().unwrap())
                 {
                     return Err(err);
                 }

@@ -53,7 +53,7 @@ impl Interpreter {
 
     pub fn interpret(&mut self, stmts: Vec<Stmt>) -> Result<Option<Value>, RuntimeErr> {
         let mut val: Result<Option<Value>, RuntimeErr> = Ok(None);
-        for s in &stmts {
+        for s in stmts {
             match s {
                 Stmt::Expr(e) => {
                     val = self.eval(&e);
@@ -61,6 +61,15 @@ impl Interpreter {
                 Stmt::Print(e) => {
                     val = self.eval(&e);
                     println!("{:#?}", val);
+                }
+                Stmt::If(e, then_branch, else_branch) => {
+                    if let Ok(v) = self.eval(&e) {
+                        if is_truthy(v.as_ref()) {
+                            val = self.interpret(vec![*then_branch]);
+                        } else if let Some(else_branch) = else_branch {
+                            val = self.interpret(vec![*else_branch]);
+                        }
+                    }
                 }
                 Stmt::Var(t, e) => {
                     val = self.eval(&e);
@@ -222,6 +231,25 @@ impl Interpreter {
                     },
                 }
             }
+            Expr::Logical(t, l, r) => {
+                let l = self.eval(l)?;
+                match t.kind {
+                    TokenKind::Or => {
+                        ret = if is_truthy(l.as_ref()) {
+                            l
+                        } else {
+                            self.eval(r)?
+                        };
+                    }
+                    _ => {
+                        ret = if !is_truthy(l.as_ref()) {
+                            l
+                        } else {
+                            self.eval(r)?
+                        };
+                    }
+                }
+            }
             Expr::Variable(t) => match self.environment.borrow().get(&t) {
                 Ok(val) => ret = Some(val),
                 Err(err) => return Err(err),
@@ -299,6 +327,16 @@ mod tests {
             .unwrap()
             .unwrap(),
             Value::String("123abc".to_owned())
+        );
+        assert_eq!(
+            sh.eval(&Expr::Logical(
+                Token::new(TokenKind::Or, "or".to_owned(), None, 1),
+                Box::new(Expr::Literal(Literal::Bool(false))),
+                Box::new(Expr::Literal(Literal::Bool(true))),
+            ))
+            .unwrap()
+            .unwrap(),
+            Value::Bool(true)
         );
     }
 }

@@ -56,9 +56,29 @@ impl Parser {
         self.consume(Semicolon, "Expect ';' after variable declaration.")?;
         Ok(Stmt::Var(t, initializer))
     }
+    fn if_stmt(&mut self) -> Result<Stmt, ParseErr> {
+        self.consume(LeftParen, "Expect '(' after conditional if")?;
+        let e = self.expression()?;
+        self.consume(RightParen, "Expect ')' after condition")?;
+        let then_branch = self.declaration()?;
+        if self.matches(&[Else]) {
+            let else_branch = self.declaration()?;
+            Ok(Stmt::If(
+                e,
+                Box::new(then_branch),
+                Some(Box::new(else_branch)),
+            ))
+        } else {
+            Ok(Stmt::If(e, Box::new(then_branch), None))
+        }
+    }
+
     fn statement(&mut self) -> Result<Stmt, ParseErr> {
         if self.matches(&[Print]) {
             return self.print_stmt();
+        }
+        if self.matches(&[If]) {
+            return self.if_stmt();
         }
         if self.matches(&[LeftBrace]) {
             return Ok(Stmt::Block(self.block()?));
@@ -88,6 +108,7 @@ impl Parser {
             Err(err) => Err(err),
         }
     }
+
     fn expr_stmt(&mut self) -> Result<Stmt, ParseErr> {
         let e = self.expression();
         self.consume(Semicolon, "Expect ';' after value.")?;
@@ -97,7 +118,7 @@ impl Parser {
         }
     }
     fn assignment(&mut self) -> Result<Expr, ParseErr> {
-        let l_val = self.equality()?;
+        let l_val = self.or()?;
         if self.matches(&[Equal]) {
             let target = self.previous();
             let e = self.expression()?;
@@ -112,6 +133,24 @@ impl Parser {
             }
         }
         Ok(l_val)
+    }
+    fn or(&mut self) -> Result<Expr, ParseErr> {
+        let mut expr = self.and()?;
+        while self.matches(&[Or]) {
+            let operator = self.previous();
+            let right = self.and()?;
+            expr = Expr::Logical(operator, Box::new(expr), Box::new(right));
+        }
+        Ok(expr)
+    }
+    fn and(&mut self) -> Result<Expr, ParseErr> {
+        let mut expr = self.equality()?;
+        while self.matches(&[And]) {
+            let operator = self.previous();
+            let right = self.equality()?;
+            expr = Expr::Logical(operator, Box::new(expr), Box::new(right));
+        }
+        Ok(expr)
     }
     fn equality(&mut self) -> Result<Expr, ParseErr> {
         let mut expr = self.comparison()?;
@@ -274,6 +313,39 @@ mod tests {
             vec![Stmt::Var(
                 Token::new(TokenKind::Identifier, "x".to_owned(), None, 1),
                 Expr::Literal(Literal::Number(7.0))
+            )]
+        );
+        assert_eq!(
+            Parser::new(vec![
+                Token::new(TokenKind::If, "if".to_owned(), None, 1),
+                Token::new(TokenKind::LeftParen, "(".to_owned(), None, 1),
+                Token::new(TokenKind::False, "false".to_owned(), None, 1),
+                Token::new(TokenKind::RightParen, ")".to_owned(), None, 1),
+                Token::new(TokenKind::Print, "print".to_owned(), None, 1),
+                Token::new(
+                    TokenKind::Number,
+                    "0.0".to_owned(),
+                    Some(Literal::Number(0.0)),
+                    1
+                ),
+                Token::new(TokenKind::Semicolon, ";".to_owned(), None, 1),
+                Token::new(TokenKind::Else, "else".to_owned(), None, 1),
+                Token::new(TokenKind::Print, "print".to_owned(), None, 1),
+                Token::new(
+                    TokenKind::Number,
+                    "1.0".to_owned(),
+                    Some(Literal::Number(1.0)),
+                    1
+                ),
+                Token::new(TokenKind::Semicolon, ";".to_owned(), None, 1),
+                Token::new(TokenKind::EOF, "".to_owned(), None, 1),
+            ])
+            .parse()
+            .unwrap(),
+            vec![Stmt::If(
+                Expr::Literal(Literal::Bool(false)),
+                Box::new(Stmt::Print(Expr::Literal(Literal::Number(0.0)))),
+                Some(Box::new(Stmt::Print(Expr::Literal(Literal::Number(1.0)))))
             )]
         );
     }

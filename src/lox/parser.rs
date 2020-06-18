@@ -72,6 +72,46 @@ impl Parser {
             Ok(Stmt::If(e, Box::new(then_branch), None))
         }
     }
+    fn while_stmt(&mut self) -> Result<Stmt, ParseErr> {
+        self.consume(LeftParen, "Expect '(' after while")?;
+        let cond = self.expression()?;
+        self.consume(RightParen, "Expect ')' after condition")?;
+        let body = self.declaration()?;
+        Ok(Stmt::While(cond, Box::new(body)))
+    }
+    // for_loop de-construct's the for loop's syntactic sugar to return an
+    // equivalent block using a while construct.
+    fn for_loop(&mut self) -> Result<Stmt, ParseErr> {
+        self.consume(LeftParen, "Expect '(' after for")?;
+        let initializer: Option<Stmt> = if !self.matches(&[Semicolon]) {
+            Some(self.declaration()?)
+        } else {
+            None
+        };
+
+        let cond = self.expression()?;
+        let increment: Option<Stmt> = if self.matches(&[Semicolon]) {
+            Some(Stmt::Expr(self.expression()?))
+        } else {
+            None
+        };
+        self.consume(RightParen, "Expect ')' after for loop definition")?;
+
+        let body = if let Some(increment) = increment {
+            Stmt::Block(vec![self.declaration()?, increment])
+        } else {
+            self.declaration()?
+        };
+        // de-constructed while loop
+        if let Some(initializer) = initializer {
+            Ok(Stmt::Block(vec![
+                initializer,
+                Stmt::While(cond, Box::new(body)),
+            ]))
+        } else {
+            Ok(Stmt::While(cond, Box::new(body)))
+        }
+    }
 
     fn statement(&mut self) -> Result<Stmt, ParseErr> {
         if self.matches(&[Print]) {
@@ -82,6 +122,12 @@ impl Parser {
         }
         if self.matches(&[LeftBrace]) {
             return Ok(Stmt::Block(self.block()?));
+        }
+        if self.matches(&[While]) {
+            return self.while_stmt();
+        }
+        if self.matches(&[For]) {
+            return self.for_loop();
         }
         self.expr_stmt()
     }
@@ -346,6 +392,105 @@ mod tests {
                 Expr::Literal(Literal::Bool(false)),
                 Box::new(Stmt::Print(Expr::Literal(Literal::Number(0.0)))),
                 Some(Box::new(Stmt::Print(Expr::Literal(Literal::Number(1.0)))))
+            )]
+        );
+        assert_eq!(
+            Parser::new(vec![
+                Token::new(TokenKind::While, "while".to_owned(), None, 1),
+                Token::new(TokenKind::LeftParen, "(".to_owned(), None, 1),
+                Token::new(
+                    TokenKind::Identifier,
+                    "i".to_owned(),
+                    Some(Literal::Identifier("i".to_owned())),
+                    1
+                ),
+                Token::new(TokenKind::Less, "<".to_owned(), None, 1),
+                Token::new(
+                    TokenKind::Number,
+                    "10.0".to_owned(),
+                    Some(Literal::Number(10.0)),
+                    1
+                ),
+                Token::new(TokenKind::RightParen, ")".to_owned(), None, 1),
+                Token::new(TokenKind::Print, "print".to_owned(), None, 1),
+                Token::new(
+                    TokenKind::Identifier,
+                    "i".to_owned(),
+                    Some(Literal::Identifier("i".to_owned())),
+                    1
+                ),
+                Token::new(TokenKind::Semicolon, ";".to_owned(), None, 1),
+                Token::new(TokenKind::EOF, "".to_owned(), None, 1),
+            ])
+            .parse()
+            .unwrap(),
+            vec![Stmt::While(
+                Expr::Binary(
+                    Token::new(TokenKind::Less, "<".to_owned(), None, 1),
+                    Box::new(Expr::Variable(Token::new(
+                        TokenKind::Identifier,
+                        "i".to_owned(),
+                        Some(Literal::Identifier("i".to_owned())),
+                        1
+                    ))),
+                    Box::new(Expr::Literal(Literal::Number(10.0))),
+                ),
+                Box::new(Stmt::Print(Expr::Variable(Token::new(
+                    TokenKind::Identifier,
+                    "i".to_owned(),
+                    Some(Literal::Identifier("i".to_owned())),
+                    1
+                )))),
+            )]
+        );
+        assert_eq!(
+            Parser::new(vec![
+                Token::new(TokenKind::For, "for".to_owned(), None, 1),
+                Token::new(TokenKind::LeftParen, "(".to_owned(), None, 1),
+                Token::new(TokenKind::Semicolon, ";".to_owned(), None, 1),
+                Token::new(
+                    TokenKind::Identifier,
+                    "i".to_owned(),
+                    Some(Literal::Identifier("i".to_owned())),
+                    1
+                ),
+                Token::new(TokenKind::Less, "<".to_owned(), None, 1),
+                Token::new(
+                    TokenKind::Number,
+                    "10.0".to_owned(),
+                    Some(Literal::Number(10.0)),
+                    1
+                ),
+                Token::new(TokenKind::RightParen, ")".to_owned(), None, 1),
+                Token::new(TokenKind::Print, "print".to_owned(), None, 1),
+                Token::new(
+                    TokenKind::Identifier,
+                    "i".to_owned(),
+                    Some(Literal::Identifier("i".to_owned())),
+                    1
+                ),
+                Token::new(TokenKind::Semicolon, ";".to_owned(), None, 1),
+                Token::new(TokenKind::EOF, "".to_owned(), None, 1),
+            ])
+            .parse()
+            .unwrap(),
+            vec![Stmt::While(
+                Expr::Binary(
+                    Token::new(TokenKind::Less, "<".to_owned(), None, 1),
+                    Box::new(Expr::Variable(Token::new(
+                        TokenKind::Identifier,
+                        "i".to_owned(),
+                        Some(Literal::Identifier("i".to_owned())),
+                        1
+                    ))),
+                    Box::new(Expr::Literal(Literal::Number(10.0))),
+                ),
+                Box::new(Stmt::Print(Expr::Variable(Token::new(
+                    TokenKind::Identifier,
+                    "i".to_owned(),
+                    Some(Literal::Identifier("i".to_owned())),
+                    1
+                )))),
             )]
         );
     }

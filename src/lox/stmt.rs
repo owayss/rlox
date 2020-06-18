@@ -7,5 +7,6 @@ pub enum Stmt {
     Print(Expr),
     Var(Token, Expr),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
+    While(Expr, Box<Stmt>),
     Block(Vec<Stmt>),
 }

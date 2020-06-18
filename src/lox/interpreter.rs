@@ -85,9 +85,14 @@ impl Interpreter {
                         self.environment = Rc::new(RefCell::new(Environment::new(Some(
                             Rc::clone(&self.environment),
                         ))));
-                        val = self.interpret(s.to_vec());
+                        val = self.interpret(s);
                     }
                     self.environment = previous;
+                }
+                Stmt::While(cond, s) => {
+                    while is_truthy(self.eval(&cond)?.as_ref()) {
+                        val = self.interpret(vec![*s.clone()]);
+                    }
                 }
             }
         }

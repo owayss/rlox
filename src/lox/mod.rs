@@ -2,6 +2,7 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
 
+mod callable;
 mod environment;
 mod expr;
 mod interpreter;

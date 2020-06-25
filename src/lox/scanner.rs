@@ -195,7 +195,7 @@ impl Scanner {
             "else" => Some(TokenKind::Else),
             "false" => Some(TokenKind::False),
             "for" => Some(TokenKind::For),
-            "fun" => Some(TokenKind::Fun),
+            "fn" => Some(TokenKind::Fn),
             "if" => Some(TokenKind::If),
             "nil" => Some(TokenKind::Nil),
             "or" => Some(TokenKind::Or),

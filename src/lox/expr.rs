@@ -10,6 +10,7 @@ pub enum Expr {
     Grouping(Box<Expr>),
     Variable(token::Token),
     Assignment(token::Token, Box<Expr>),
+    Call(Box<Expr>, token::Token, Vec<Box<Expr>>),
 }
 // Lisp-like printer for AST
 impl fmt::Display for Expr {
@@ -22,6 +23,10 @@ impl fmt::Display for Expr {
             Expr::Grouping(e) => write!(f, "(group {})", e),
             Expr::Variable(t) => write!(f, "{}", t),
             Expr::Assignment(t, val) => write!(f, "{} {}", t, val),
+            Expr::Call(e, _, args) => {
+                let args: Vec<String> = args.iter().map(|a| format!("{}", *a)).collect();
+                write!(f, "{}({})", e, args.join(","))
+            }
         }
     }
 }

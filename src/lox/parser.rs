@@ -1,5 +1,5 @@
 use super::expr::Expr;
-use super::stmt::Stmt;
+use super::stmt::{FnDeclaration, Stmt};
 use super::token::{Literal, Token, TokenKind, TokenKind::*};
 
 #[derive(Debug)]
@@ -8,6 +8,7 @@ pub enum ParseErr {
     UnclosedGrouping,
     UnknownProduction,
     InvalidAssignmentTarget,
+    FuncMaxArgs,
 }
 pub struct Parser {
     current: usize,
@@ -15,6 +16,9 @@ pub struct Parser {
 }
 
 impl Parser {
+    // Maximum number of arguments a function is allowed to have.
+    const MAX_ARGS: usize = 255;
+
     pub fn new(tokens: Vec<Token>) -> Parser {
         Parser { current: 0, tokens }
     }
@@ -36,7 +40,9 @@ impl Parser {
         self.assignment()
     }
     fn declaration(&mut self) -> Result<Stmt, ParseErr> {
-        let res = if self.matches(&[Var]) {
+        let res = if self.matches(&[Fn]) {
+            self.fn_declaration()
+        } else if self.matches(&[Var]) {
             self.var_declaration()
         } else {
             self.statement()
@@ -45,6 +51,35 @@ impl Parser {
             self.synchronize();
         }
         res
+    }
+    fn fn_declaration(&mut self) -> Result<Stmt, ParseErr> {
+        let t = self.consume(Identifier, "Expect function name.")?;
+        self.consume(LeftParen, "Expect '(' after function name in declaration.")?;
+        let params: Vec<std::string::String> = if self.matches(&[RightParen]) {
+            Vec::with_capacity(0)
+        } else {
+            let mut params: Vec<std::string::String> = vec![
+                self.consume(Identifier, "Expect identifier as function parameter")?
+                    .lexeme,
+            ];
+            loop {
+                if !self.matches(&[Comma]) || params.len() >= Parser::MAX_ARGS {
+                    break;
+                }
+                params.push(
+                    self.consume(Identifier, "Expect identifier as function parameter")?
+                        .lexeme,
+                );
+            }
+            self.consume(RightParen, "Expect ')' after function declaration")?;
+            params
+        };
+        self.consume(LeftBrace, "Expect '{' before function definition")?;
+        Ok(Stmt::Fn(Box::new(FnDeclaration {
+            name: t,
+            params: params,
+            body: Stmt::Block(self.block()?),
+        })))
     }
     fn var_declaration(&mut self) -> Result<Stmt, ParseErr> {
         let t = self.consume(Identifier, "Expect variable name.")?;
@@ -129,6 +164,9 @@ impl Parser {
         if self.matches(&[For]) {
             return self.for_loop();
         }
+        if self.matches(&[Return]) {
+            return self.return_stmt();
+        }
         self.expr_stmt()
     }
     fn block(&mut self) -> Result<Vec<Stmt>, ParseErr> {
@@ -151,6 +189,14 @@ impl Parser {
         self.consume(Semicolon, "Expect ';' after value.")?;
         match e {
             Ok(e) => Ok(Stmt::Print(e)),
+            Err(err) => Err(err),
+        }
+    }
+    fn return_stmt(&mut self) -> Result<Stmt, ParseErr> {
+        let e = self.expression();
+        self.consume(Semicolon, "Expect ';' after value.")?;
+        match e {
+            Ok(e) => Ok(Stmt::Return(e)),
             Err(err) => Err(err),
         }
     }
@@ -240,8 +286,37 @@ impl Parser {
             let right = self.unary()?;
             Ok(Expr::Unary(operator, Box::new(right)))
         } else {
-            self.primary()
+            self.call()
         }
+    }
+
+    fn call(&mut self) -> Result<Expr, ParseErr> {
+        let mut expr = self.primary()?;
+        while self.matches(&[LeftParen]) {
+            expr = self.finish_call(expr)?;
+        }
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, e: Expr) -> Result<Expr, ParseErr> {
+        let func_call = if self.matches(&[RightParen]) {
+            Ok(Expr::Call(Box::new(e), self.previous(), vec![]))
+        } else {
+            let mut args: Vec<Box<Expr>> = vec![];
+            args.push(Box::new(self.expression()?));
+            let ret = loop {
+                if !self.matches(&[Comma]) {
+                    break Ok(Expr::Call(Box::new(e), self.peek(), args));
+                }
+                if args.len() >= Parser::MAX_ARGS {
+                    break Err(ParseErr::FuncMaxArgs);
+                }
+                args.push(Box::new(self.expression()?));
+            };
+            self.consume(RightParen, "Expect ')' after function call")?;
+            ret
+        };
+        func_call
     }
     fn primary(&mut self) -> Result<Expr, ParseErr> {
         if self.matches(&[False]) {
@@ -299,7 +374,7 @@ impl Parser {
                 return;
             }
             match self.peek().kind {
-                Class | Fun | Var | For | If | While | Print | Return => return,
+                Class | Fn | Var | For | If | While | Print | Return => return,
                 _ => {}
             }
 

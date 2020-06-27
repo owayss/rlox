@@ -34,8 +34,13 @@ pub fn run_repl() {
 
         let mut buf = String::new();
         stdin.read_line(&mut buf).unwrap();
-        if let Err(e) = run(&mut interpreter, &buf) {
-            eprintln!("{:?}", e);
+        match run(&mut interpreter, &buf) {
+            Err(e) => eprintln!("{:?}", e),
+            Ok(val) => {
+                if let Some(val) = val {
+                    println!("{}", val)
+                }
+            }
         }
     }
 }

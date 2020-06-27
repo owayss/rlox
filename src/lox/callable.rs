@@ -28,13 +28,11 @@ impl Callable for Function {
     }
     fn call(&self, args: Vec<Value>) -> Result<Option<Value>, RuntimeErr> {
         let mut interpreter = Interpreter::new();
-        interpreter.environment = Rc::clone(&self.environment);
+        let mut env = Environment::new(Some(Rc::clone(&self.environment)));
         for i in 0..self.arity() {
-            interpreter
-                .environment
-                .borrow_mut()
-                .define(&self.declaration.params[i], args[i].clone());
+            env.define(&self.declaration.params[i], args[i].clone());
         }
+        interpreter.environment = Rc::new(RefCell::new(env));
         interpreter.interpret(vec![self.declaration.body.clone()])
     }
 }

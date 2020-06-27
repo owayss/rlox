@@ -77,8 +77,7 @@ impl Interpreter {
                     val = self.eval(&e)?;
                 }
                 Stmt::Print(e) => {
-                    val = self.eval(&e)?;
-                    match &val {
+                    match self.eval(&e)? {
                         Some(val) => println!("{}", val),
                         // FIXME: this is really still in an exploration phase.
                         // The key thing to decide for our interpreter here is
@@ -86,6 +85,8 @@ impl Interpreter {
                         // a value is providing any benefit to the programmer.
                         None => println!(""),
                     }
+                    // We purposefully drop the expression used by the print
+                    // statement.
                 }
                 Stmt::If(e, then_branch, else_branch) => {
                     if let Ok(v) = self.eval(&e) {

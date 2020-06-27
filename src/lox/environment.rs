@@ -1,29 +1,9 @@
-use super::interpreter::Value;
+use super::interpreter::{RuntimeErr, Value};
 use super::token::Token;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::fmt;
 use std::rc::Rc;
 
-#[derive(Debug, Clone)]
-pub enum RuntimeErr {
-    UndefinedSymbol(String),
-    AssignmentToUndefined(String),
-    UndefinedOperatorOnType(String),
-    NotCallable(String),
-    CallableArityMismatch(String),
-    // Representing early returns as a variant on RuntimeErr makes for an
-    // easy implementation. However it does a feel somewhat unnatural to call
-    // an early return a RuntimeErr
-    // or does it not?..
-    Return(Option<Value>),
-}
-
-impl fmt::Display for RuntimeErr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
 #[derive(Debug, Clone)]
 pub struct Environment {
     globals: HashMap<String, Value>,

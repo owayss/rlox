@@ -1,5 +1,5 @@
 use super::callable::{Callable, Function};
-use super::environment::{Environment, RuntimeErr};
+use super::environment::Environment;
 use super::expr::Expr;
 use super::stmt::{FnDeclaration, Stmt};
 use super::token::{Literal, TokenKind};
@@ -7,6 +7,25 @@ use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
 
+#[derive(Debug, Clone)]
+pub enum RuntimeErr {
+    UndefinedSymbol(String),
+    AssignmentToUndefined(String),
+    UndefinedOperatorOnType(String),
+    NotCallable(String),
+    CallableArityMismatch(String),
+    // Representing early returns as a variant on RuntimeErr makes for an
+    // easy implementation. However it does a feel somewhat unnatural to call
+    // an early return a RuntimeErr
+    // or does it not?..
+    Return(Option<Value>),
+}
+
+impl fmt::Display for RuntimeErr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
 #[derive(Debug, PartialEq, Clone)]
 // We are effectively defining equality on any two values, even mixed types.
 // TODO: Do we want this?

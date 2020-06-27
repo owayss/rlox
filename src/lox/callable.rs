@@ -1,5 +1,5 @@
-use super::environment::{Environment, RuntimeErr};
-use super::interpreter::{Interpreter, Value};
+use super::environment::Environment;
+use super::interpreter::{Interpreter, RuntimeErr, Value};
 use super::stmt::FnDeclaration;
 use std::cell::RefCell;
 use std::rc::Rc;

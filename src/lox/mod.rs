@@ -16,6 +16,7 @@ mod token;
 pub enum LoxErr {
     RuntimeErr(interpreter::RuntimeErr),
     ParseErr(parser::ParseErr),
+    ResolveErr(resolver::ResolveErr),
 }
 
 pub fn run_file(filepath: &str) {
@@ -53,12 +54,22 @@ fn run(
     let mut s = scanner::Scanner::new(source);
     let tokens = s.scan_tokens();
     let mut p = parser::Parser::new(tokens);
-    match p.parse() {
-        Ok(stmts) => match i.interpret(stmts) {
-            Ok(val) => Ok(val),
-            Err(e) => Err(LoxErr::RuntimeErr(e)),
-        },
-        Err(e) => Err(LoxErr::ParseErr(e)),
+    let ret = p.parse();
+    if let Err(e) = ret {
+        return Err(LoxErr::ParseErr(e));
+    }
+    let stmts = ret.unwrap();
+    let resolver = resolver::Resolver::new();
+    let ret = resolver.resolve(&stmts);
+    if let Err(e) = ret {
+        return Err(LoxErr::ResolveErr(e));
+    }
+    let locals = ret.unwrap();
+    i.locals = locals;
+
+    match i.interpret(stmts) {
+        Ok(val) => Ok(val),
+        Err(e) => Err(LoxErr::RuntimeErr(e)),
     }
 }
 

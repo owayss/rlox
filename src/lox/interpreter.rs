@@ -83,8 +83,8 @@ fn eval_literal(l: &Literal) -> Option<Value> {
 
 pub struct Interpreter<'a> {
     pub environment: Rc<RefCell<Environment>>,
+    pub locals: SideTable,
     out: &'a mut dyn Write,
-    locals: SideTable,
 }
 impl<'a> Interpreter<'a> {
     pub fn new(out: &'a mut dyn Write, locals: Option<SideTable>) -> Self {

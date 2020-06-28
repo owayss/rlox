@@ -5,6 +5,9 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
+#[derive(Debug)]
+pub enum ResolveErr {}
+
 #[derive(PartialEq)]
 pub struct RefExpr(Rc<Expr>);
 impl Eq for RefExpr {}
@@ -20,17 +23,16 @@ pub struct Resolver {
     scopes: Vec<HashMap<String, bool>>,
 }
 impl Resolver {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Resolver { scopes: Vec::new() }
     }
-    fn resolve(&self, stmts: &Vec<Stmt>, locals: SideTable) {}
+    pub fn resolve(&self, stmts: &Vec<Stmt>) -> Result<SideTable, ResolveErr> {
+        Ok(SideTable::new())
+    }
 }
 #[cfg(test)]
 mod tests {
-    use super::{
-        super::{interpreter, parser, scanner},
-        SideTable,
-    };
+    use super::super::{interpreter, parser, scanner};
     #[test]
     fn test_resolve() {
         let semantic_bug = r#"

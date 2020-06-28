@@ -1,6 +1,7 @@
 use super::callable::{Callable, Function};
 use super::environment::Environment;
 use super::expr::Expr;
+use super::resolver::SideTable;
 use super::stmt::{FnDeclaration, Stmt};
 use super::token::{Literal, TokenKind};
 use std::cell::RefCell;
@@ -79,15 +80,23 @@ fn eval_literal(l: &Literal) -> Option<Value> {
         Literal::Nil => None,
     }
 }
+
 pub struct Interpreter<'a> {
     pub environment: Rc<RefCell<Environment>>,
     out: &'a mut dyn Write,
+    locals: SideTable,
 }
 impl<'a> Interpreter<'a> {
-    pub fn new(out: &'a mut dyn Write) -> Self {
+    pub fn new(out: &'a mut dyn Write, locals: Option<SideTable>) -> Self {
+        let locals = if let Some(locals) = locals {
+            locals
+        } else {
+            SideTable::new()
+        };
         Interpreter {
             environment: Rc::new(RefCell::new(Environment::new(None))),
             out: out,
+            locals: locals,
         }
     }
 
@@ -364,7 +373,7 @@ mod tests {
         };
         let mut stdout = std::io::stdout();
 
-        let mut sh = super::Interpreter::new(&mut stdout);
+        let mut sh = super::Interpreter::new(&mut stdout, None);
         assert_eq!(
             sh.interpret(vec![Stmt::Expr(Expr::Unary(
                 Token::new(TokenKind::Bang, "!".to_owned(), None, 1),
@@ -418,7 +427,7 @@ mod tests {
         }
 
         // Arity mismatch
-        let mut sh = super::Interpreter::new(&mut stdout);
+        let mut sh = super::Interpreter::new(&mut stdout, None);
         sh.interpret(vec![Stmt::Fn(Box::new(FnDeclaration {
             name: Token::new(TokenKind::Identifier, "identity".to_owned(), None, 1),
             params: vec!["n".to_owned()],

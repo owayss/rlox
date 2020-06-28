@@ -1,0 +1,13 @@
+// This listing demonstrates a current bug the rlox interpreter has:
+// because functions are not bound to the scope in which they get created,
+// this code will print "block" on the second call to showA(), where it should
+// have printed "global" instead.
+var a = "global";
+{
+    fn showA() {
+        print a;
+    }
+    showA();
+    var a = "block";
+    showA();
+}

@@ -20,7 +20,7 @@ pub enum LoxErr {
 
 pub fn run_file(filepath: &str) {
     run(
-        &mut interpreter::Interpreter::new(&mut std::io::stdout()),
+        &mut interpreter::Interpreter::new(&mut std::io::stdout(), None),
         &fs::read_to_string(Path::new(filepath)).unwrap(),
     )
     .unwrap();
@@ -35,7 +35,7 @@ pub fn run_repl() {
         let mut buf = String::new();
         stdin.read_line(&mut buf).unwrap();
 
-        let mut interpreter = interpreter::Interpreter::new(&mut stdout);
+        let mut interpreter = interpreter::Interpreter::new(&mut stdout, None);
         match run(&mut interpreter, &buf) {
             Err(e) => eprintln!("{:?}", e),
             Ok(val) => {
@@ -75,7 +75,7 @@ mod tests {
     #[test]
     fn test_interpreter() {
         let mut stdout = std::io::stdout();
-        let mut interpreter = super::interpreter::Interpreter::new(&mut stdout);
+        let mut interpreter = super::interpreter::Interpreter::new(&mut stdout, None);
         let fib = |n: usize| -> String {
             let body = "
         fn fib(n) {

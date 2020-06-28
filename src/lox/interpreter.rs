@@ -5,6 +5,7 @@ use super::stmt::{FnDeclaration, Stmt};
 use super::token::{Literal, TokenKind};
 use std::cell::RefCell;
 use std::fmt;
+use std::io::Write;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
@@ -14,6 +15,7 @@ pub enum RuntimeErr {
     UndefinedOperatorOnType(String),
     NotCallable(String),
     CallableArityMismatch(String),
+    IO(String),
     // Representing early returns as a variant on RuntimeErr makes for an
     // easy implementation. However it does a feel somewhat unnatural to call
     // an early return a RuntimeErr
@@ -77,14 +79,15 @@ fn eval_literal(l: &Literal) -> Option<Value> {
         Literal::Nil => None,
     }
 }
-#[derive(Debug)]
-pub struct Interpreter {
+pub struct Interpreter<'a> {
     pub environment: Rc<RefCell<Environment>>,
+    out: &'a mut dyn Write,
 }
-impl Interpreter {
-    pub fn new() -> Self {
+impl<'a> Interpreter<'a> {
+    pub fn new(out: &'a mut dyn Write) -> Self {
         Interpreter {
             environment: Rc::new(RefCell::new(Environment::new(None))),
+            out: out,
         }
     }
 
@@ -97,15 +100,19 @@ impl Interpreter {
                 }
                 Stmt::Print(e) => {
                     match self.eval(&e)? {
-                        Some(val) => println!("{}", val),
-                        // FIXME: this is really still in an exploration phase.
-                        // The key thing to decide for our interpreter here is
-                        // whether the use of None to represent the absence of
-                        // a value is providing any benefit to the programmer.
-                        None => println!(""),
+                        Some(val) => {
+                            if let Err(err) = writeln!(self.out, "{}", val) {
+                                return Err(RuntimeErr::IO(format!("{}", err)));
+                            }
+                        }
+                        None => {
+                            if let Err(err) = writeln!(self.out, "") {
+                                return Err(RuntimeErr::IO(format!("{}", err)));
+                            }
+                        }
                     }
-                    // We purposefully drop the expression used by the print
-                    // statement.
+                    // We purposefully do not capture the value used in the
+                    // print statement and just let it drop here.
                 }
                 Stmt::If(e, then_branch, else_branch) => {
                     if let Ok(v) = self.eval(&e) {
@@ -297,7 +304,7 @@ impl Interpreter {
                     let declaration = self.environment.borrow().get(t)?;
 
                     if let Value::Fn(declaration) = declaration {
-                        let func = Function::new(declaration, Rc::clone(&self.environment));
+                        let func = Function::new(declaration);
                         if evaluated_args.len() != func.arity() {
                             return Err(RuntimeErr::CallableArityMismatch(format!(
                                 "Expected {} arguments but received {}",
@@ -305,7 +312,9 @@ impl Interpreter {
                                 evaluated_args.len()
                             )));
                         }
-                        ret = func.call(evaluated_args);
+                        let previous = Rc::clone(&self.environment);
+                        ret = func.call(self, evaluated_args);
+                        self.environment = previous;
                         // Capture the returned value if the call returned with
                         // an explicit RETURN statement.
                         if let Err(RuntimeErr::Return(val)) = ret {
@@ -353,7 +362,9 @@ mod tests {
         use super::{
             super::token::Token, Expr, FnDeclaration, Literal, RuntimeErr, Stmt, TokenKind,
         };
-        let mut sh = super::Interpreter::new();
+        let mut stdout = std::io::stdout();
+
+        let mut sh = super::Interpreter::new(&mut stdout);
         assert_eq!(
             sh.interpret(vec![Stmt::Expr(Expr::Unary(
                 Token::new(TokenKind::Bang, "!".to_owned(), None, 1),
@@ -407,7 +418,7 @@ mod tests {
         }
 
         // Arity mismatch
-        let mut sh = super::Interpreter::new();
+        let mut sh = super::Interpreter::new(&mut stdout);
         sh.interpret(vec![Stmt::Fn(Box::new(FnDeclaration {
             name: Token::new(TokenKind::Identifier, "identity".to_owned(), None, 1),
             params: vec!["n".to_owned()],

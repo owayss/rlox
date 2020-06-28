@@ -7,6 +7,7 @@ mod environment;
 mod expr;
 mod interpreter;
 mod parser;
+mod resolver;
 mod scanner;
 mod stmt;
 mod token;
@@ -19,7 +20,7 @@ pub enum LoxErr {
 
 pub fn run_file(filepath: &str) {
     run(
-        &mut interpreter::Interpreter::new(),
+        &mut interpreter::Interpreter::new(&mut std::io::stdout()),
         &fs::read_to_string(Path::new(filepath)).unwrap(),
     )
     .unwrap();
@@ -27,13 +28,14 @@ pub fn run_file(filepath: &str) {
 pub fn run_repl() {
     let stdin = io::stdin();
     let mut stdout = io::stdout();
-    let mut interpreter = interpreter::Interpreter::new();
     loop {
         stdout.write("> ".as_bytes()).unwrap();
         stdout.flush().unwrap();
 
         let mut buf = String::new();
         stdin.read_line(&mut buf).unwrap();
+
+        let mut interpreter = interpreter::Interpreter::new(&mut stdout);
         match run(&mut interpreter, &buf) {
             Err(e) => eprintln!("{:?}", e),
             Ok(val) => {
@@ -72,6 +74,8 @@ mod tests {
     use super::run;
     #[test]
     fn test_interpreter() {
+        let mut stdout = std::io::stdout();
+        let mut interpreter = super::interpreter::Interpreter::new(&mut stdout);
         let fib = |n: usize| -> String {
             let body = "
         fn fib(n) {
@@ -103,12 +107,7 @@ mod tests {
             },
         ];
         for case in &battery {
-            let val = run(
-                &mut super::interpreter::Interpreter::new(),
-                &fib(case.input),
-            )
-            .unwrap()
-            .unwrap();
+            let val = run(&mut interpreter, &fib(case.input)).unwrap().unwrap();
             if let super::interpreter::Value::Number(out) = val {
                 assert_eq!(out as usize, case.expected);
             }

@@ -5,20 +5,20 @@ use std::cell::RefCell;
 use std::rc::Rc;
 pub trait Callable {
     fn arity(&self) -> usize;
-    fn call(&self, args: Vec<Value>) -> Result<Option<Value>, RuntimeErr>;
+    fn call(
+        &self,
+        interpreter: &mut Interpreter,
+        args: Vec<Value>,
+    ) -> Result<Option<Value>, RuntimeErr>;
 }
 
 pub struct Function {
     declaration: FnDeclaration,
-    environment: Rc<RefCell<Environment>>,
 }
 
 impl Function {
-    pub fn new(declaration: FnDeclaration, environment: Rc<RefCell<Environment>>) -> Self {
-        Function {
-            declaration,
-            environment,
-        }
+    pub fn new(declaration: FnDeclaration) -> Self {
+        Function { declaration }
     }
 }
 
@@ -26,9 +26,12 @@ impl Callable for Function {
     fn arity(&self) -> usize {
         self.declaration.params.len()
     }
-    fn call(&self, args: Vec<Value>) -> Result<Option<Value>, RuntimeErr> {
-        let mut interpreter = Interpreter::new();
-        let mut env = Environment::new(Some(Rc::clone(&self.environment)));
+    fn call(
+        &self,
+        interpreter: &mut Interpreter,
+        args: Vec<Value>,
+    ) -> Result<Option<Value>, RuntimeErr> {
+        let mut env = Environment::new(Some(Rc::clone(&interpreter.environment)));
         for i in 0..self.arity() {
             env.define(&self.declaration.params[i], args[i].clone());
         }

@@ -29,14 +29,14 @@ pub fn run_file(filepath: &str) {
 pub fn run_repl() {
     let stdin = io::stdin();
     let mut stdout = io::stdout();
+    let mut interpreter = interpreter::Interpreter::new(&mut stdout, None);
     loop {
-        stdout.write("> ".as_bytes()).unwrap();
-        stdout.flush().unwrap();
+        io::stdout().write("> ".as_bytes()).unwrap();
+        io::stdout().flush().unwrap();
 
         let mut buf = String::new();
         stdin.read_line(&mut buf).unwrap();
 
-        let mut interpreter = interpreter::Interpreter::new(&mut stdout, None);
         match run(&mut interpreter, &buf) {
             Err(e) => eprintln!("{:?}", e),
             Ok(val) => {
@@ -59,7 +59,7 @@ fn run(
         return Err(LoxErr::ParseErr(e));
     }
     let stmts = ret.unwrap();
-    let resolver = resolver::Resolver::new();
+    let mut resolver = resolver::Resolver::new();
     let ret = resolver.resolve(&stmts);
     if let Err(e) = ret {
         return Err(LoxErr::ResolveErr(e));

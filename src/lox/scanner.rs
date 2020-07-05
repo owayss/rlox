@@ -5,6 +5,7 @@ pub struct Scanner {
     start: usize,
     current: usize,
     line: usize,
+    column: usize,
     had_error: bool,
 }
 impl Scanner {
@@ -15,6 +16,7 @@ impl Scanner {
             start: 0,
             current: 0,
             line: 1,
+            column: 1,
             had_error: false,
         }
     }
@@ -24,8 +26,13 @@ impl Scanner {
             self.start = self.current;
             self.scan_token();
         }
-        self.tokens
-            .push(Token::new(TokenKind::EOF, "".to_owned(), None, self.line));
+        self.tokens.push(Token::new(
+            TokenKind::EOF,
+            "".to_owned(),
+            None,
+            self.line,
+            self.column,
+        ));
         self.tokens.clone()
     }
 
@@ -90,6 +97,7 @@ impl Scanner {
             ' ' | '\r' | '\t' => {}
             '\n' => {
                 self.line += 1;
+                self.column = 1;
             }
             // We could have used range matching here, but having
             // the functions is_digit(), is_alpha(), and so on is more
@@ -134,8 +142,10 @@ impl Scanner {
         }
         if self.peek() == '.' && self.is_digit(self.peek_next()) {
             self.current += 1;
+            self.column += 1;
             while self.is_digit(self.peek()) {
                 self.current += 1;
+                self.column += 1;
             }
         }
         let val: f64 = self.source[self.start..self.current]
@@ -166,6 +176,7 @@ impl Scanner {
             false
         } else {
             self.current += 1;
+            self.column += 1;
             true
         }
     }
@@ -185,6 +196,7 @@ impl Scanner {
     }
     fn advance(&mut self) -> char {
         self.current += 1;
+        self.column += 1;
         self.source[self.current - 1]
     }
 
@@ -221,6 +233,7 @@ impl Scanner {
 
     fn add_token(&mut self, kind: TokenKind, literal: Option<Literal>) {
         let text: String = self.source[self.start..self.current].iter().collect();
-        self.tokens.push(Token::new(kind, text, literal, self.line));
+        self.tokens
+            .push(Token::new(kind, text, literal, self.line, self.column));
     }
 }

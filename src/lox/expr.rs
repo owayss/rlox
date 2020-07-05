@@ -42,9 +42,9 @@ mod tests {
         assert_eq!(
             "(* (- 123) (group 45.67))",
             Expr::Binary(
-                Token::new(TokenKind::Star, "*".to_owned(), None, 1),
+                Token::new(TokenKind::Star, "*".to_owned(), None, 1, 3),
                 Box::new(Expr::Unary(
-                    Token::new(TokenKind::Minus, "-".to_owned(), None, 1),
+                    Token::new(TokenKind::Minus, "-".to_owned(), None, 1, 1),
                     Box::new(Expr::Literal(Literal::Number(123.0))),
                 )),
                 Box::new(Expr::Grouping(Box::new(Expr::Literal(Literal::Number(
@@ -57,7 +57,7 @@ mod tests {
         assert_eq!(
             "(+ 123 abc)",
             Expr::Binary(
-                Token::new(TokenKind::Plus, "+".to_owned(), None, 1),
+                Token::new(TokenKind::Plus, "+".to_owned(), None, 1, 2),
                 Box::new(Expr::Literal(Literal::String("123".to_owned()))),
                 Box::new(Expr::Literal(Literal::String("abc".to_owned()))),
             )

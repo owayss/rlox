@@ -3,6 +3,7 @@ use super::interpreter::{Interpreter, RuntimeErr, Value};
 use super::stmt::FnDeclaration;
 use std::cell::RefCell;
 use std::rc::Rc;
+
 pub trait Callable {
     fn arity(&self) -> usize;
     fn call(
@@ -36,6 +37,6 @@ impl Callable for Function {
             env.define(&self.declaration.params[i], args[i].clone());
         }
         interpreter.environment = Rc::new(RefCell::new(env));
-        interpreter.interpret(vec![self.declaration.body.clone()])
+        interpreter.interpret(vec![&self.declaration.body])
     }
 }

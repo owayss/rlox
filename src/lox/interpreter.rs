@@ -3,7 +3,7 @@ use super::environment::Environment;
 use super::expr::Expr;
 use super::resolver::SideTable;
 use super::stmt::{FnDeclaration, Stmt};
-use super::token::{Literal, TokenKind};
+use super::token::{Literal, Token, TokenKind};
 use std::cell::RefCell;
 use std::fmt;
 use std::io::Write;
@@ -100,7 +100,7 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    pub fn interpret(&mut self, stmts: Vec<Stmt>) -> Result<Option<Value>, RuntimeErr> {
+    pub fn interpret(&mut self, stmts: Vec<&Stmt>) -> Result<Option<Value>, RuntimeErr> {
         let mut val: Option<Value> = None;
         for s in stmts {
             match s {
@@ -126,9 +126,9 @@ impl<'a> Interpreter<'a> {
                 Stmt::If(e, then_branch, else_branch) => {
                     if let Ok(v) = self.eval(&e) {
                         if is_truthy(v.as_ref()) {
-                            val = self.interpret(vec![*then_branch])?;
+                            val = self.interpret(vec![then_branch])?;
                         } else if let Some(else_branch) = else_branch {
-                            val = self.interpret(vec![*else_branch])?;
+                            val = self.interpret(vec![else_branch])?;
                         }
                     }
                 }
@@ -144,13 +144,13 @@ impl<'a> Interpreter<'a> {
                         self.environment = Rc::new(RefCell::new(Environment::new(Some(
                             Rc::clone(&self.environment),
                         ))));
-                        val = self.interpret(s)?;
+                        val = self.interpret(s.iter().map(|x| x).collect())?;
                     }
                     self.environment = previous;
                 }
                 Stmt::While(cond, s) => {
                     while is_truthy(self.eval(&cond)?.as_ref()) {
-                        val = self.interpret(vec![*s.clone()])?;
+                        val = self.interpret(vec![s])?;
                     }
                 }
                 Stmt::Fn(declaration) => self.environment.borrow_mut().define(
@@ -277,7 +277,7 @@ impl<'a> Interpreter<'a> {
                 }
             }
             Expr::Variable(t) => {
-                ret = match self.environment.borrow().get(&t) {
+                ret = match self.lookup_var(t) {
                     Ok(val) => Ok(Some(val)),
                     Err(err) => Err(err),
                 }
@@ -285,11 +285,19 @@ impl<'a> Interpreter<'a> {
             Expr::Assignment(t, r_val) => {
                 ret = self.eval(r_val);
                 if let Ok(val) = &ret {
-                    if let Err(err) = self
-                        .environment
-                        .borrow_mut()
-                        .assign(&t.lexeme, val.clone().unwrap())
+                    if let Err(err) = if let Some(&distance) =
+                        self.locals.get(&(t.lexeme.to_owned(), t.pos_in_src()))
                     {
+                        self.environment.borrow_mut().assign_at(
+                            &t.lexeme,
+                            val.clone().unwrap(),
+                            distance,
+                        )
+                    } else {
+                        self.environment
+                            .borrow_mut()
+                            .assign(&t.lexeme, val.clone().unwrap())
+                    } {
                         ret = Err(err);
                     }
                 }
@@ -310,7 +318,7 @@ impl<'a> Interpreter<'a> {
                     // FIXME: re-think the Token structure: for identifiers, we
                     // are storing two copies of the same string, as the field
                     // lexeme and inside Literal's Identifier variant.
-                    let declaration = self.environment.borrow().get(t)?;
+                    let declaration = self.environment.borrow().get(&t.lexeme)?;
 
                     if let Value::Fn(declaration) = declaration {
                         let func = Function::new(declaration);
@@ -338,6 +346,14 @@ impl<'a> Interpreter<'a> {
             }
         }
         ret
+    }
+
+    fn lookup_var(&self, t: &Token) -> Result<Value, RuntimeErr> {
+        if let Some(&distance) = self.locals.get(&(t.lexeme.to_owned(), t.pos_in_src())) {
+            self.environment.borrow().get_at(&t.lexeme, distance)
+        } else {
+            self.environment.borrow().get_global(&t.lexeme)
+        }
     }
 }
 
@@ -369,14 +385,15 @@ mod tests {
     #[test]
     fn test_eval() {
         use super::{
-            super::token::Token, Expr, FnDeclaration, Literal, RuntimeErr, Stmt, TokenKind,
+            super::resolver, super::token::Token, Expr, FnDeclaration, Literal, RuntimeErr, Stmt,
+            TokenKind,
         };
         let mut stdout = std::io::stdout();
 
         let mut sh = super::Interpreter::new(&mut stdout, None);
         assert_eq!(
-            sh.interpret(vec![Stmt::Expr(Expr::Unary(
-                Token::new(TokenKind::Bang, "!".to_owned(), None, 1),
+            sh.interpret(vec![&Stmt::Expr(Expr::Unary(
+                Token::new(TokenKind::Bang, "!".to_owned(), None, 1, 1),
                 Box::new(Expr::Literal(Literal::Bool(false))),
             ))])
             .unwrap()
@@ -385,7 +402,7 @@ mod tests {
         );
 
         if let Err(RuntimeErr::UndefinedOperatorOnType(_)) = sh.eval(&Expr::Binary(
-            Token::new(TokenKind::Plus, "+".to_owned(), None, 1),
+            Token::new(TokenKind::Plus, "+".to_owned(), None, 1, 2),
             Box::new(Expr::Literal(Literal::Number(123.0))),
             Box::new(Expr::Literal(Literal::String("abc".to_owned()))),
         )) {
@@ -396,7 +413,7 @@ mod tests {
 
         assert_eq!(
             sh.eval(&Expr::Binary(
-                Token::new(TokenKind::Plus, "+".to_owned(), None, 1),
+                Token::new(TokenKind::Plus, "+".to_owned(), None, 1, 2),
                 Box::new(Expr::Literal(Literal::String("123".to_owned()))),
                 Box::new(Expr::Literal(Literal::String("abc".to_owned()))),
             ))
@@ -406,7 +423,7 @@ mod tests {
         );
         assert_eq!(
             sh.eval(&Expr::Logical(
-                Token::new(TokenKind::Or, "or".to_owned(), None, 1),
+                Token::new(TokenKind::Or, "or".to_owned(), None, 1, 2),
                 Box::new(Expr::Literal(Literal::Bool(false))),
                 Box::new(Expr::Literal(Literal::Bool(true))),
             ))
@@ -418,7 +435,7 @@ mod tests {
         // Calling a non-function
         if let Err(RuntimeErr::NotCallable(_)) = sh.eval(&Expr::Call(
             Box::new(Expr::Literal(Literal::Number(123.0))),
-            Token::new(TokenKind::RightParen, ")".to_owned(), None, 1),
+            Token::new(TokenKind::RightParen, ")".to_owned(), None, 1, 3),
             vec![],
         )) {
             assert!(true)
@@ -428,25 +445,30 @@ mod tests {
 
         // Arity mismatch
         let mut sh = super::Interpreter::new(&mut stdout, None);
-        sh.interpret(vec![Stmt::Fn(Box::new(FnDeclaration {
-            name: Token::new(TokenKind::Identifier, "identity".to_owned(), None, 1),
+        let stmts = vec![Stmt::Fn(Box::new(FnDeclaration {
+            name: Token::new(TokenKind::Identifier, "identity".to_owned(), None, 1, 1),
             params: vec!["n".to_owned()],
             body: Stmt::Expr(Expr::Variable(Token::new(
                 TokenKind::Identifier,
                 "n".to_owned(),
                 None,
                 1,
+                3,
             ))),
-        }))])
-        .unwrap();
+        }))];
+        let stmts = stmts.iter().map(|s| s).collect();
+        let locals = resolver::Resolver::new().resolve(&stmts).unwrap();
+        sh.locals = locals;
+        sh.interpret(stmts).unwrap();
         if let Err(RuntimeErr::CallableArityMismatch(_)) = sh.eval(&Expr::Call(
             Box::new(Expr::Variable(Token::new(
                 TokenKind::Identifier,
                 "identity".to_owned(),
                 None,
                 1,
+                1,
             ))),
-            Token::new(TokenKind::RightParen, ")".to_owned(), None, 1),
+            Token::new(TokenKind::RightParen, ")".to_owned(), None, 1, 3),
             Vec::<Box<Expr>>::with_capacity(0),
         )) {
             assert!(true)
@@ -462,8 +484,9 @@ mod tests {
                     "identity".to_owned(),
                     None,
                     1,
+                    1
                 ))),
-                Token::new(TokenKind::RightParen, ")".to_owned(), None, 1),
+                Token::new(TokenKind::RightParen, ")".to_owned(), None, 1, 4),
                 vec![Box::new(Expr::Literal(Literal::Number(7.0)))],
             ))
             .unwrap()

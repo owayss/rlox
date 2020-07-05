@@ -64,15 +64,26 @@ pub struct Token {
     pub lexeme: String,
     pub literal: Option<Literal>,
     pub line: usize,
+    pub column: usize,
 }
 impl Token {
-    pub fn new(kind: TokenKind, lexeme: String, literal: Option<Literal>, line: usize) -> Self {
+    pub fn new(
+        kind: TokenKind,
+        lexeme: String,
+        literal: Option<Literal>,
+        line: usize,
+        column: usize,
+    ) -> Self {
         Token {
             kind,
             lexeme,
             literal,
             line,
+            column,
         }
+    }
+    pub fn pos_in_src(&self) -> usize {
+        return self.line * self.column;
     }
 }
 impl fmt::Display for Token {

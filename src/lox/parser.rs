@@ -22,6 +22,7 @@ impl Parser {
     pub fn new(tokens: Vec<Token>) -> Parser {
         Parser { current: 0, tokens }
     }
+
     pub fn parse(&mut self) -> Result<Vec<Stmt>, ParseErr> {
         let mut stmts = Vec::<Stmt>::new();
         while !self.is_at_end() {
@@ -417,49 +418,52 @@ mod tests {
     fn test_statement() {
         assert_eq!(
             Parser::new(vec![
-                Token::new(TokenKind::Var, "var".to_owned(), None, 1),
-                Token::new(TokenKind::Identifier, "x".to_owned(), None, 1),
-                Token::new(TokenKind::Equal, "=".to_owned(), None, 1),
+                Token::new(TokenKind::Var, "var".to_owned(), None, 1, 1),
+                Token::new(TokenKind::Identifier, "x".to_owned(), None, 1, 2),
+                Token::new(TokenKind::Equal, "=".to_owned(), None, 1, 3),
                 Token::new(
                     TokenKind::Number,
                     "7.0".to_owned(),
                     Some(Literal::Number(7.0)),
-                    1
+                    1,
+                    4
                 ),
-                Token::new(TokenKind::Semicolon, ";".to_owned(), None, 1),
-                Token::new(TokenKind::EOF, "".to_owned(), None, 1),
+                Token::new(TokenKind::Semicolon, ";".to_owned(), None, 1, 4),
+                Token::new(TokenKind::EOF, "".to_owned(), None, 1, 5),
             ])
             .parse()
             .unwrap(),
             vec![Stmt::Var(
-                Token::new(TokenKind::Identifier, "x".to_owned(), None, 1),
+                Token::new(TokenKind::Identifier, "x".to_owned(), None, 1, 2),
                 Expr::Literal(Literal::Number(7.0))
             )]
         );
         assert_eq!(
             Parser::new(vec![
-                Token::new(TokenKind::If, "if".to_owned(), None, 1),
-                Token::new(TokenKind::LeftParen, "(".to_owned(), None, 1),
-                Token::new(TokenKind::False, "false".to_owned(), None, 1),
-                Token::new(TokenKind::RightParen, ")".to_owned(), None, 1),
-                Token::new(TokenKind::Print, "print".to_owned(), None, 1),
+                Token::new(TokenKind::If, "if".to_owned(), None, 1, 1),
+                Token::new(TokenKind::LeftParen, "(".to_owned(), None, 1, 2),
+                Token::new(TokenKind::False, "false".to_owned(), None, 1, 3),
+                Token::new(TokenKind::RightParen, ")".to_owned(), None, 1, 4),
+                Token::new(TokenKind::Print, "print".to_owned(), None, 1, 5),
                 Token::new(
                     TokenKind::Number,
                     "0.0".to_owned(),
                     Some(Literal::Number(0.0)),
-                    1
+                    1,
+                    6
                 ),
-                Token::new(TokenKind::Semicolon, ";".to_owned(), None, 1),
-                Token::new(TokenKind::Else, "else".to_owned(), None, 1),
-                Token::new(TokenKind::Print, "print".to_owned(), None, 1),
+                Token::new(TokenKind::Semicolon, ";".to_owned(), None, 1, 7),
+                Token::new(TokenKind::Else, "else".to_owned(), None, 1, 8),
+                Token::new(TokenKind::Print, "print".to_owned(), None, 1, 9),
                 Token::new(
                     TokenKind::Number,
                     "1.0".to_owned(),
                     Some(Literal::Number(1.0)),
-                    1
+                    1,
+                    10
                 ),
-                Token::new(TokenKind::Semicolon, ";".to_owned(), None, 1),
-                Token::new(TokenKind::EOF, "".to_owned(), None, 1),
+                Token::new(TokenKind::Semicolon, ";".to_owned(), None, 1, 11),
+                Token::new(TokenKind::EOF, "".to_owned(), None, 1, 12),
             ])
             .parse()
             .unwrap(),
@@ -471,42 +475,46 @@ mod tests {
         );
         assert_eq!(
             Parser::new(vec![
-                Token::new(TokenKind::While, "while".to_owned(), None, 1),
-                Token::new(TokenKind::LeftParen, "(".to_owned(), None, 1),
+                Token::new(TokenKind::While, "while".to_owned(), None, 1, 1),
+                Token::new(TokenKind::LeftParen, "(".to_owned(), None, 1, 2),
                 Token::new(
                     TokenKind::Identifier,
                     "i".to_owned(),
                     Some(Literal::Identifier("i".to_owned())),
-                    1
+                    1,
+                    3
                 ),
-                Token::new(TokenKind::Less, "<".to_owned(), None, 1),
+                Token::new(TokenKind::Less, "<".to_owned(), None, 1, 4),
                 Token::new(
                     TokenKind::Number,
                     "10.0".to_owned(),
                     Some(Literal::Number(10.0)),
-                    1
+                    1,
+                    4
                 ),
-                Token::new(TokenKind::RightParen, ")".to_owned(), None, 1),
-                Token::new(TokenKind::Print, "print".to_owned(), None, 1),
+                Token::new(TokenKind::RightParen, ")".to_owned(), None, 1, 5),
+                Token::new(TokenKind::Print, "print".to_owned(), None, 1, 6),
                 Token::new(
                     TokenKind::Identifier,
                     "i".to_owned(),
                     Some(Literal::Identifier("i".to_owned())),
-                    1
+                    1,
+                    7
                 ),
-                Token::new(TokenKind::Semicolon, ";".to_owned(), None, 1),
-                Token::new(TokenKind::EOF, "".to_owned(), None, 1),
+                Token::new(TokenKind::Semicolon, ";".to_owned(), None, 1, 8),
+                Token::new(TokenKind::EOF, "".to_owned(), None, 1, 9),
             ])
             .parse()
             .unwrap(),
             vec![Stmt::While(
                 Expr::Binary(
-                    Token::new(TokenKind::Less, "<".to_owned(), None, 1),
+                    Token::new(TokenKind::Less, "<".to_owned(), None, 1, 4),
                     Box::new(Expr::Variable(Token::new(
                         TokenKind::Identifier,
                         "i".to_owned(),
                         Some(Literal::Identifier("i".to_owned())),
-                        1
+                        1,
+                        3
                     ))),
                     Box::new(Expr::Literal(Literal::Number(10.0))),
                 ),
@@ -514,49 +522,54 @@ mod tests {
                     TokenKind::Identifier,
                     "i".to_owned(),
                     Some(Literal::Identifier("i".to_owned())),
-                    1
+                    1,
+                    7
                 )))),
             )]
         );
         assert_eq!(
             Parser::new(vec![
-                Token::new(TokenKind::For, "for".to_owned(), None, 1),
-                Token::new(TokenKind::LeftParen, "(".to_owned(), None, 1),
-                Token::new(TokenKind::Semicolon, ";".to_owned(), None, 1),
+                Token::new(TokenKind::For, "for".to_owned(), None, 1, 1),
+                Token::new(TokenKind::LeftParen, "(".to_owned(), None, 1, 2),
+                Token::new(TokenKind::Semicolon, ";".to_owned(), None, 1, 3),
                 Token::new(
                     TokenKind::Identifier,
                     "i".to_owned(),
                     Some(Literal::Identifier("i".to_owned())),
-                    1
+                    1,
+                    4
                 ),
-                Token::new(TokenKind::Less, "<".to_owned(), None, 1),
+                Token::new(TokenKind::Less, "<".to_owned(), None, 1, 5),
                 Token::new(
                     TokenKind::Number,
                     "10.0".to_owned(),
                     Some(Literal::Number(10.0)),
-                    1
+                    1,
+                    6
                 ),
-                Token::new(TokenKind::RightParen, ")".to_owned(), None, 1),
-                Token::new(TokenKind::Print, "print".to_owned(), None, 1),
+                Token::new(TokenKind::RightParen, ")".to_owned(), None, 1, 7),
+                Token::new(TokenKind::Print, "print".to_owned(), None, 1, 8),
                 Token::new(
                     TokenKind::Identifier,
                     "i".to_owned(),
                     Some(Literal::Identifier("i".to_owned())),
-                    1
+                    1,
+                    9
                 ),
-                Token::new(TokenKind::Semicolon, ";".to_owned(), None, 1),
-                Token::new(TokenKind::EOF, "".to_owned(), None, 1),
+                Token::new(TokenKind::Semicolon, ";".to_owned(), None, 1, 10),
+                Token::new(TokenKind::EOF, "".to_owned(), None, 1, 11),
             ])
             .parse()
             .unwrap(),
             vec![Stmt::While(
                 Expr::Binary(
-                    Token::new(TokenKind::Less, "<".to_owned(), None, 1),
+                    Token::new(TokenKind::Less, "<".to_owned(), None, 1, 5),
                     Box::new(Expr::Variable(Token::new(
                         TokenKind::Identifier,
                         "i".to_owned(),
                         Some(Literal::Identifier("i".to_owned())),
-                        1
+                        1,
+                        4
                     ))),
                     Box::new(Expr::Literal(Literal::Number(10.0))),
                 ),
@@ -564,7 +577,8 @@ mod tests {
                     TokenKind::Identifier,
                     "i".to_owned(),
                     Some(Literal::Identifier("i".to_owned())),
-                    1
+                    1,
+                    9
                 )))),
             )]
         );

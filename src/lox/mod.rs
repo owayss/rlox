@@ -58,7 +58,8 @@ fn run(
     if let Err(e) = ret {
         return Err(LoxErr::ParseErr(e));
     }
-    let stmts = ret.unwrap();
+    let ret = ret.unwrap();
+    let stmts: Vec<&stmt::Stmt> = ret.iter().map(|s| s).collect();
     let mut resolver = resolver::Resolver::new();
     let ret = resolver.resolve(&stmts);
     if let Err(e) = ret {
@@ -66,7 +67,6 @@ fn run(
     }
     let locals = ret.unwrap();
     i.locals = locals;
-
     match i.interpret(stmts) {
         Ok(val) => Ok(val),
         Err(e) => Err(LoxErr::RuntimeErr(e)),
@@ -113,8 +113,8 @@ mod tests {
                 expected: 1,
             },
             Case {
-                input: 10,
-                expected: 55,
+                input: 6,
+                expected: 8,
             },
         ];
         for case in &battery {
